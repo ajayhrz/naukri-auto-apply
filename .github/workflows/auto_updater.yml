@@ -1,0 +1,33 @@
+name: Naukri Auto-Updater
+
+on:
+  schedule:
+    # Runs every 2 hours
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Allows you to manually trigger it from the GitHub UI
+
+jobs:
+  run-updater:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: |
+        npm install
+        npx playwright install chromium --with-deps
+
+    - name: Run Profile Updater
+      env:
+        NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
+        NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
+        # The environment variable below tells Playwright to run in headless mode
+        GITHUB_ACTIONS: true
+      run: node update_profile.js

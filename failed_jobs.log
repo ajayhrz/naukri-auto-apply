@@ -1,0 +1,13 @@
+--- Failed Jobs Log (5/19/2026, 12:42:09 PM) ---
+
+[Missing Apply Button] Manual Test Engineers - Bengaluru - Cyient - 2 to 5 years of experience
+URL: https://www.naukri.com/job-listings-manual-test-engineers-cyient-bengaluru-2-to-5-years-190526011942
+
+[Error] Fullstack Developer - Face To Face Interview - Bengaluru - Cigres Technologies - 4 to 6 years of experience
+URL: https://www.naukri.com/job-listings-fullstack-developer-face-to-face-interview-cigres-technologies-bengaluru-4-to-6-years-190526011924
+Reason: page.waitForTimeout: Target page, context or browser has been closed
+
+[Error] Programmer/Analyst - Bengaluru - NetApp - 3 to 5 years of experience
+URL: https://www.naukri.com/job-listings-programmer-analyst-netapp-bengaluru-3-to-5-years-190526011911
+Reason: page.waitForTimeout: Target page, context or browser has been closed
+

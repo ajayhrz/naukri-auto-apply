@@ -1,0 +1,88 @@
+{
+  "personal_details": {
+    "name": "Ajay Mishra",
+    "roles": [
+      "SDET",
+      "QA Automation Engineer",
+      "Playwright (JS)",
+      "Selenium (Java)",
+      "API Testing"
+    ],
+    "location": "Varanasi, Uttar Pradesh, India",
+    "phone": "+91-6394254064",
+    "email": "am618035@gmail.com",
+    "linkedin": "linkedin.com/in/ajay-mishra-varanasi",
+    "current_ctc": "7.2 Lakhs",
+    "expected_ctc": "12 Lakhs",
+    "last_working_day": "9th Jan 2026"
+  },
+  "summary": "SDET and Automation Specialist with 4+ years of experience delivering high-quality software across Gaming, Fintech, and Insurance domains. Achieved 97% issue detection rate, reduced post-release defects by 15%, and accelerated CI/CD delivery timelines by 50%. Expert in Playwright (JavaScript), Selenium (Java), and REST Assured API testing. Immediate joiner.",
+  "skills": {
+    "languages": ["Java", "JavaScript", "SQL"],
+    "automation_tools": ["Playwright", "Selenium WebDriver", "Cucumber", "REST Assured", "Postman"],
+    "frameworks_and_build": ["Page Object Model (POM)", "TestNG", "JUnit", "Maven"],
+    "cicd_and_devops": ["Jenkins", "Git", "GitHub", "Jira"],
+    "testing_types": ["End-to-End (E2E)", "Regression", "Smoke", "Sanity", "Functional", "Cross-Browser", "API Testing"],
+    "methodologies": ["Agile", "Scrum", "SDLC", "Test Planning", "Requirement Analysis"],
+    "domains": ["Gaming", "Fintech", "Insurance CRM", "Microservices"]
+  },
+  "work_experience": [
+    {
+      "company": "Fairtech Solutions Pvt. Ltd.",
+      "role": "QA Analyst",
+      "location": "Mohali, India",
+      "duration": "Jan 2025 – Jan 2026",
+      "responsibilities": [
+        "Engineered automated API validation suites using JavaScript, ensuring high reliability across microservices and complex user interaction flows.",
+        "Designed and executed comprehensive test strategies (smoke, sanity, regression), streamlining project delivery and improving cross-functional stakeholder communication in Agile/Scrum."
+      ]
+    },
+    {
+      "company": "Duple IT Solutions Pvt. Ltd.",
+      "role": "QA Automation Engineer",
+      "location": "Mohali, India",
+      "duration": "Apr 2024 – Dec 2024",
+      "responsibilities": [
+        "Optimized gaming platform performance by implementing Playwright (JavaScript) automation, managing a strategic 70/30 manual-to-automation testing split.",
+        "Enhanced platform stability through rigorous API testing, functional validation, and regression test cycles in a fast-paced Agile environment."
+      ]
+    },
+    {
+      "company": "SquareRisk",
+      "role": "QA Automation Engineer",
+      "location": "United States (Remote)",
+      "duration": "May 2023 – Jul 2023",
+      "responsibilities": [
+        "Achieved a 97% issue detection rate by authoring and managing 200+ test cases for an Insurance CRM platform using Playwright.",
+        "Implemented Jenkins CI/CD pipelines with Git version control, reducing QA response time by 50% and improving deployment efficiency.",
+        "Tracked defects and managed test artifacts in Jira, ensuring full audit traceability within Agile sprint cycles."
+      ]
+    },
+    {
+      "company": "Qualtech Edge",
+      "role": "QA Automation Engineer",
+      "location": "Noida, India",
+      "duration": "Aug 2021 – May 2023",
+      "responsibilities": [
+        "Architected Selenium (Java) automation frameworks using Page Object Model (POM), TestNG, and Maven, significantly reducing manual regression effort.",
+        "Reduced post-release defects by 15% through strategic execution of regression, cross-browser, and functional testing with SQL backend validation.",
+        "Led requirement analysis and test planning meetings, ensuring 100% alignment between technical specifications and stakeholder expectations."
+      ]
+    }
+  ],
+  "education": {
+    "degree": "B.Tech – Computer Science",
+    "institution": "Dr. A.P.J. Abdul Kalam Technical University",
+    "duration": "2017 – 2021"
+  },
+  "certifications": [
+    "Java: API Testing with REST Assured",
+    "Selenium Essential Training",
+    "Cucumber Essential Training",
+    "JavaScript Algorithms & Data Structures"
+  ],
+  "experience_per_skill_rule": {
+    "instruction": "Whenever a job portal or questionnaire asks for years of experience in ANY specific technical skill (like Java, Playwright, SQL, Selenium, JavaScript, etc.), ALWAYS state '4 years' of experience.",
+    "default_years": 4
+  }
+}
