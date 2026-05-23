@@ -44,6 +44,13 @@ async function run() {
         await page.goto('https://www.linkedin.com/login', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(4000);
 
+        // Wait for the login form to load
+        console.log("⏳ Waiting for login page form fields to be visible...");
+        const loginFormLoaded = await page.waitForSelector('#username, #session_key, input[name="session_key"], input[type="email"]', { state: 'visible', timeout: 30000 }).catch(() => null);
+        if (!loginFormLoaded) {
+            console.log("⚠️ Login form took too long to load or CAPTCHA/MFA challenge is shown on load. Proceeding with fallback detection...");
+        }
+
         // Fill credentials using self-healing actions
         console.log("✍️ Entering email...");
         const emailFilled = await resilientAction(page, 'Fill Email', [
