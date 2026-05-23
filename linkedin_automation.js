@@ -84,9 +84,14 @@ async function run() {
         // Allow time for manual multi-factor authentication or captcha verification if requested
         console.log("⏳ Waiting for login confirmation...");
         try {
-            await page.waitForURL(/.*linkedin.com\/(feed|checkpoint|jobs).*/, { timeout: 60000 });
+            let currentUrl = page.url();
             
-            const currentUrl = page.url();
+            // Check if we are already on feed, checkpoint, or jobs. If not, wait for it.
+            if (!/.*linkedin.com\/(feed|checkpoint|jobs).*/.test(currentUrl)) {
+                await page.waitForURL(/.*linkedin.com\/(feed|checkpoint|jobs).*/, { timeout: 60000 });
+                currentUrl = page.url();
+            }
+            
             if (currentUrl.includes('/checkpoint/')) {
                 console.log("⚠️ LinkedIn Security Challenge detected! Please check your LinkedIn app and tap YES (or solve the challenge manually in the browser window)...");
                 console.log("⏳ Waiting for challenge completion (up to 5 minutes)...");
