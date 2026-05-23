@@ -82,11 +82,21 @@ async function run() {
         }
 
         // Allow time for manual multi-factor authentication or captcha verification if requested
-        console.log("⏳ Waiting for login confirmation (Please solve MFA/CAPTCHA manually if it appears)...");
-        await page.waitForURL(/.*linkedin.com\/(feed|checkpoint).*/, { timeout: 60000 });
+        console.log("⏳ Waiting for login confirmation...");
+        try {
+            await page.waitForURL(/.*linkedin.com\/(feed|checkpoint|jobs).*/, { timeout: 60000 });
+            
+            const currentUrl = page.url();
+            if (currentUrl.includes('/checkpoint/')) {
+                console.log("⚠️ LinkedIn Security Challenge detected! Please check your LinkedIn app and tap YES (or solve the challenge manually in the browser window)...");
+                console.log("⏳ Waiting for challenge completion (up to 5 minutes)...");
+                await page.waitForURL(/.*linkedin.com\/(feed|jobs).*/, { timeout: 300000 });
+            }
+            console.log("✅ Successfully logged in and verified.");
+        } catch (e) {
+            console.log("⚠️ Did not confirm login automatically within timeout. Proceeding anyway, please complete login manually if needed.");
+        }
 
-        console.log("✅ Successfully logged into LinkedIn feed.");
-        
         // Wait 5 seconds as requested
         console.log("⏳ Waiting for 5 seconds...");
         await page.waitForTimeout(5000);
