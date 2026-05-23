@@ -99,24 +99,38 @@ async function run() {
             }
 
             // Allow time for manual multi-factor authentication or captcha verification if requested
-            console.log("⏳ Waiting for login confirmation...");
+            console.log("⏳ Waiting for login confirmation (please log in or solve any challenges manually in the browser window)...");
             try {
-                let checkUrl = page.url();
-                
-                // Check if we are already on feed, checkpoint, or jobs. If not, wait for it.
-                if (!/.*linkedin.com\/(feed|checkpoint|jobs).*/.test(checkUrl)) {
-                    await page.waitForURL(/.*linkedin.com\/(feed|checkpoint|jobs).*/, { timeout: 60000 });
-                    checkUrl = page.url();
+                const startTime = Date.now();
+                const maxWaitTime = 300000; // 5 minutes
+                let loggedIn = false;
+                let lastAlertTime = 0;
+
+                while (Date.now() - startTime < maxWaitTime) {
+                    const currentUrl = page.url();
+                    
+                    // If we reached feed or jobs, we are logged in!
+                    if (/.*linkedin.com\/(feed|jobs).*/.test(currentUrl)) {
+                        loggedIn = true;
+                        break;
+                    }
+
+                    // If checkpoint is detected, print helpful warning every 15 seconds
+                    if (currentUrl.includes('/checkpoint/') && (Date.now() - lastAlertTime > 15000)) {
+                        console.log("⚠️ LinkedIn Security Challenge detected! Please check your LinkedIn app and tap YES (or solve the challenge manually)...");
+                        lastAlertTime = Date.now();
+                    }
+
+                    await page.waitForTimeout(2000); // Check every 2 seconds
                 }
-                
-                if (checkUrl.includes('/checkpoint/')) {
-                    console.log("⚠️ LinkedIn Security Challenge detected! Please check your LinkedIn app and tap YES (or solve the challenge manually in the browser window)...");
-                    console.log("⏳ Waiting for challenge completion (up to 5 minutes)...");
-                    await page.waitForURL(/.*linkedin.com\/(feed|jobs).*/, { timeout: 300000 });
+
+                if (loggedIn) {
+                    console.log("✅ Successfully logged in and verified.");
+                } else {
+                    console.log("⚠️ Did not confirm login automatically within 5 minutes. Proceeding anyway...");
                 }
-                console.log("✅ Successfully logged in and verified.");
             } catch (e) {
-                console.log("⚠️ Did not confirm login automatically within timeout. Proceeding anyway, please complete login manually if needed.");
+                console.log("⚠️ Error checking login status: " + e.message);
             }
         }
 
