@@ -34,6 +34,37 @@ async function commentOnRelevantPosts(page) {
     const postSelector = '.reusable-search__result-container, [data-urn], article, .search-results-container li, .feed-shared-update-v2';
     await page.waitForSelector(postSelector, { timeout: 15000 }).catch(() => null);
     
+    // Inspect DOM to find actual card classes based on Comment buttons
+    const domDiagnostics = await page.evaluate(() => {
+        const commentBtns = Array.from(document.querySelectorAll('button, span, div')).filter(el => {
+            const txt = el.innerText ? el.innerText.trim().toLowerCase() : '';
+            return txt === 'comment' || txt.includes('comment');
+        });
+        
+        return commentBtns.map(btn => {
+            const parents = [];
+            let p = btn.parentElement;
+            let d = 0;
+            while (p && d < 6) {
+                parents.push({
+                    tag: p.tagName.toLowerCase(),
+                    class: p.className,
+                    id: p.id
+                });
+                p = p.parentElement;
+                d++;
+            }
+            return {
+                tag: btn.tagName.toLowerCase(),
+                text: btn.innerText,
+                class: btn.className,
+                parents
+            };
+        });
+    }).catch(() => []);
+    
+    console.log("🔍 DOM Diagnostics (Found " + domDiagnostics.length + " Comment buttons):", JSON.stringify(domDiagnostics.slice(0, 3), null, 2));
+
     // Find all post containers on LinkedIn search results page
     const posts = await page.locator(postSelector).all();
     console.log(`📊 Found ${posts.length} potential post cards on page.`);
