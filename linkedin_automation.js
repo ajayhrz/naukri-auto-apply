@@ -5,8 +5,9 @@ const EMAIL = process.env.LINKEDIN_EMAIL;
 const PASSWORD = process.env.LINKEDIN_PASSWORD;
 
 async function resilientAction(page, actionName, locators, actionType = 'click', value = '') {
-    for (const locator of locators) {
+    for (const rawLocator of locators) {
         try {
+            const locator = rawLocator.first();
             if (await locator.isVisible({ timeout: 5000 })) {
                 if (actionType === 'click') {
                     await locator.click({ timeout: 5000 });
@@ -18,7 +19,9 @@ async function resilientAction(page, actionName, locators, actionType = 'click',
                 }
                 return true;
             }
-        } catch (e) {}
+        } catch (e) {
+            console.log(`[Self-Healing Debug] Locator error for ${actionName}: ${e.message}`);
+        }
     }
     console.log(`[Self-Healing Warning] Could not perform action: ${actionName}`);
     return false;
