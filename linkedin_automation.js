@@ -30,15 +30,15 @@ async function resilientAction(page, actionName, locators, actionType = 'click',
 async function commentOnRelevantPosts(page) {
     console.log("🔍 Scanning search result posts for software testing openings...");
 
-    // Wait for post elements to load
-    const postSelector = '.reusable-search__result-container, [data-urn], article, .search-results-container li, .feed-shared-update-v2';
-    await page.waitForSelector(postSelector, { timeout: 15000 }).catch(() => null);
+    // Wait for post elements or comment buttons to load
+    await page.waitForSelector('button', { timeout: 15000 }).catch(() => null);
     
-    // Inspect DOM to find actual card classes based on Comment buttons
+    // Inspect DOM to find actual comment button classes and their parent card structures
     const domDiagnostics = await page.evaluate(() => {
-        const commentBtns = Array.from(document.querySelectorAll('button, span, div')).filter(el => {
+        // Query only interactive buttons that say "Comment"
+        const commentBtns = Array.from(document.querySelectorAll('button')).filter(el => {
             const txt = el.innerText ? el.innerText.trim().toLowerCase() : '';
-            return txt === 'comment' || txt.includes('comment');
+            return txt.includes('comment') || el.getAttribute('aria-label')?.toLowerCase().includes('comment');
         });
         
         return commentBtns.map(btn => {
@@ -63,64 +63,101 @@ async function commentOnRelevantPosts(page) {
         });
     }).catch(() => []);
     
-    console.log("🔍 DOM Diagnostics (Found " + domDiagnostics.length + " Comment buttons):", JSON.stringify(domDiagnostics.slice(0, 3), null, 2));
+    console.log("🔍 DOM Diagnostics (Found " + domDiagnostics.length + " Comment buttons):", JSON.stringify(domDiagnostics.slice(0, 5), null, 2));
 
-    // Find all post containers on LinkedIn search results page
-    const posts = await page.locator(postSelector).all();
-    console.log(`📊 Found ${posts.length} potential post cards on page.`);
-
-    if (posts.length === 0) {
-        console.log("⚠️ No posts found on page. Saving screenshot to debug...");
-        await page.screenshot({ path: 'linkedin_search_results.png' }).catch(() => {});
-        console.log("📸 Screenshot saved to 'linkedin_search_results.png'");
-    }
+    // Try finding card containers using standard class candidates or by locating the closest parent of the comment buttons
+    const postCandidates = await page.locator('.reusable-search__result-container, [data-urn], article, .search-results-container li, .feed-shared-update-v2').all();
+    console.log(`📊 Found ${postCandidates.length} post containers via selectors.`);
 
     let commentedCount = 0;
+    
+    // Fallback: If standard selectors returned 0 but we found comment buttons, let's target cards dynamically by traversing parents in JS
+    if (postCandidates.length === 0 && domDiagnostics.length > 0) {
+        console.log("💡 Standard selectors returned 0 cards, but found comment buttons. Commencing dynamic DOM traversal...");
+        
+        // We will evaluate matching and clicking directly inside the page context for 100% precision
+        const commentActionResults = await page.evaluate(async (keyword) => {
+            const results = [];
+            const commentBtns = Array.from(document.querySelectorAll('button')).filter(el => {
+                const txt = el.innerText ? el.innerText.trim().toLowerCase() : '';
+                return txt.includes('comment') || el.getAttribute('aria-label')?.toLowerCase().includes('comment');
+            });
 
-    for (let i = 0; i < posts.length; i++) {
-        try {
-            const post = posts[i];
-            if (!(await post.isVisible())) continue;
+            const techKeywords = ['testing', 'qa ', 'sdet', 'quality assurance'];
+            const hiringKeywords = ['hiring', 'opening', 'vacancy', 'looking for', 'recruiting', 'job'];
 
-            // Extract post text content to inspect
-            const postText = await post.innerText().catch(() => '');
-            const textLower = postText.toLowerCase();
-
-            // Check if it matches Software Testing and is an opening/hiring post
-            const isTestingRelated = textLower.includes('testing') || textLower.includes('qa ') || textLower.includes('sdet') || textLower.includes('quality assurance');
-            const isHiringRelated = textLower.includes('hiring') || textLower.includes('opening') || textLower.includes('vacancy') || textLower.includes('looking for') || textLower.includes('recruiting') || textLower.includes('job');
-
-            if (isTestingRelated && isHiringRelated) {
-                console.log(`\n📌 Found Matching Post (${i+1}): "${postText.substring(0, 120).replace(/\n/g, ' ')}..."`);
-
-                // Find the Comment button within this post card
-                const commentBtn = post.locator('button:has-text("Comment"), button[aria-label*="Comment"], button.comment-button, button.artdeco-button:has-text("Comment")').first();
+            for (let i = 0; i < commentBtns.length; i++) {
+                const btn = commentBtns[i];
                 
-                if (await commentBtn.isVisible({ timeout: 3000 })) {
+                // Traverse up to find a card container that has the post text content
+                let card = btn.parentElement;
+                let postText = '';
+                let depth = 0;
+                
+                // Go up to 6 levels to find an ancestor container that wraps the post text
+                while (card && depth < 6) {
+                    const text = card.innerText || '';
+                    if (text.length > 100 && (text.toLowerCase().includes('hiring') || text.toLowerCase().includes('opening') || text.toLowerCase().includes('job'))) {
+                        postText = text;
+                        break;
+                    }
+                    card = card.parentElement;
+                    depth++;
+                }
+
+                if (!postText) {
+                    // Fallback: use body of the closest wrapper
+                    postText = btn.parentElement?.innerText || '';
+                }
+
+                const textLower = postText.toLowerCase();
+                const isTesting = techKeywords.some(k => textLower.includes(k));
+                const isHiring = hiringKeywords.some(k => textLower.includes(k));
+
+                if (isTesting && isHiring) {
+                    results.push({
+                        index: i,
+                        matchedText: postText.substring(0, 120),
+                        actionable: true
+                    });
+                }
+            }
+            return results;
+        }, process.env.JOB_KEYWORD || "Software Testing");
+
+        console.log(`📌 Dynamic Traversal found ${commentActionResults.length} matching hiring posts:`, JSON.stringify(commentActionResults, null, 2));
+
+        for (const action of commentActionResults) {
+            try {
+                console.log(`\n📌 Commenting on dynamic post card: "${action.matchedText.replace(/\n/g, ' ')}..."`);
+                
+                // Locating the exact button by index
+                const commentBtn = page.locator('button').filter({ hasText: 'Comment' }).nth(action.index);
+                
+                if (await commentBtn.isVisible({ timeout: 5000 })) {
                     console.log("💬 Clicking Comment button...");
                     await commentBtn.click({ force: true });
                     await page.waitForTimeout(2000);
 
-                    // Find comment text area editor (LinkedIn uses Quill ql-editor or div[role="textbox"])
-                    const commentInput = post.locator('div.ql-editor, div[role="textbox"], textarea, [aria-placeholder*="comment"]').first();
+                    // Find text editor box inside the current active element's container
+                    const commentInput = page.locator('div.ql-editor, div[role="textbox"], textarea, [aria-placeholder*="comment"]').first();
                     
-                    if (await commentInput.isVisible({ timeout: 4000 })) {
+                    if (await commentInput.isVisible({ timeout: 5000 })) {
                         console.log("✍️ Typing comment: \"Interested\"...");
                         await commentInput.focus();
                         await commentInput.fill("Interested");
                         await page.waitForTimeout(1500);
 
-                        // Find the Post/Submit button
-                        const postSubmitBtn = post.locator('button:has-text("Post"), button.comments-comment-box__submit-button, button[type="submit"]').first();
+                        // Find the submit/Post button
+                        const postSubmitBtn = page.locator('button:has-text("Post"), button.comments-comment-box__submit-button, button[type="submit"]').first();
                         if (await postSubmitBtn.isVisible({ timeout: 3000 })) {
                             console.log("🚀 Clicking Post button...");
                             await postSubmitBtn.click();
                             commentedCount++;
                             console.log("✅ Comment posted successfully!");
                             
-                            // Delay to act like a human and avoid anti-bot block
-                            const delay = Math.floor(Math.random() * 5000) + 5000; // 5-10 seconds pause
-                            console.log(`⏳ Pausing for ${delay/1000} seconds to prevent bot flagging...`);
+                            // Human-like delay
+                            const delay = Math.floor(Math.random() * 5000) + 5000;
                             await page.waitForTimeout(delay);
                         } else {
                             console.log("⚠️ Could not locate Post button.");
@@ -128,12 +165,58 @@ async function commentOnRelevantPosts(page) {
                     } else {
                         console.log("⚠️ Could not locate Comment input field.");
                     }
-                } else {
-                    console.log("ℹ️ Comment button is not visible or comments are disabled for this post.");
                 }
+            } catch (err) {
+                console.log(`⚠️ Error executing dynamic comment action:`, err.message);
             }
-        } catch (err) {
-            console.log(`⚠️ Error processing post ${i+1}:`, err.message);
+        }
+    } else {
+        // Standard loop using selectors
+        for (let i = 0; i < postCandidates.length; i++) {
+            try {
+                const post = postCandidates[i];
+                if (!(await post.isVisible())) continue;
+
+                const postText = await post.innerText().catch(() => '');
+                const textLower = postText.toLowerCase();
+
+                const isTestingRelated = textLower.includes('testing') || textLower.includes('qa ') || textLower.includes('sdet') || textLower.includes('quality assurance');
+                const isHiringRelated = textLower.includes('hiring') || textLower.includes('opening') || textLower.includes('vacancy') || textLower.includes('looking for') || textLower.includes('recruiting') || textLower.includes('job');
+
+                if (isTestingRelated && isHiringRelated) {
+                    console.log(`\n📌 Found Matching Post (${i+1}): "${postText.substring(0, 120).replace(/\n/g, ' ')}..."`);
+
+                    const commentBtn = post.locator('button:has-text("Comment"), button[aria-label*="Comment"], button.comment-button, button.artdeco-button:has-text("Comment")').first();
+                    
+                    if (await commentBtn.isVisible({ timeout: 3000 })) {
+                        console.log("💬 Clicking Comment button...");
+                        await commentBtn.click({ force: true });
+                        await page.waitForTimeout(2000);
+
+                        const commentInput = post.locator('div.ql-editor, div[role="textbox"], textarea, [aria-placeholder*="comment"]').first();
+                        
+                        if (await commentInput.isVisible({ timeout: 4000 })) {
+                            console.log("✍️ Typing comment: \"Interested\"...");
+                            await commentInput.focus();
+                            await commentInput.fill("Interested");
+                            await page.waitForTimeout(1500);
+
+                            const postSubmitBtn = post.locator('button:has-text("Post"), button.comments-comment-box__submit-button, button[type="submit"]').first();
+                            if (await postSubmitBtn.isVisible({ timeout: 3000 })) {
+                                console.log("🚀 Clicking Post button...");
+                                await postSubmitBtn.click();
+                                commentedCount++;
+                                console.log("✅ Comment posted successfully!");
+                                
+                                const delay = Math.floor(Math.random() * 5000) + 5000;
+                                await page.waitForTimeout(delay);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log(`⚠️ Error processing post ${i+1}:`, err.message);
+            }
         }
     }
     console.log(`\n🎉 Content scan complete. Commented on ${commentedCount} matching posts.`);
