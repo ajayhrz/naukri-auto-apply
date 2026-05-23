@@ -27,6 +27,77 @@ async function resilientAction(page, actionName, locators, actionType = 'click',
     return false;
 }
 
+async function commentOnRelevantPosts(page) {
+    console.log("🔍 Scanning search result posts for software testing openings...");
+    
+    // Find all post containers on LinkedIn search results page
+    const posts = await page.locator('.reusable-search__result-container, [data-urn], article, .search-results-container li').all();
+    console.log(`📊 Found ${posts.length} potential post cards on page.`);
+
+    let commentedCount = 0;
+
+    for (let i = 0; i < posts.length; i++) {
+        try {
+            const post = posts[i];
+            if (!(await post.isVisible())) continue;
+
+            // Extract post text content to inspect
+            const postText = await post.innerText().catch(() => '');
+            const textLower = postText.toLowerCase();
+
+            // Check if it matches Software Testing and is an opening/hiring post
+            const isTestingRelated = textLower.includes('testing') || textLower.includes('qa ') || textLower.includes('sdet') || textLower.includes('quality assurance');
+            const isHiringRelated = textLower.includes('hiring') || textLower.includes('opening') || textLower.includes('vacancy') || textLower.includes('looking for') || textLower.includes('recruiting') || textLower.includes('job');
+
+            if (isTestingRelated && isHiringRelated) {
+                console.log(`\n📌 Found Matching Post (${i+1}): "${postText.substring(0, 120).replace(/\n/g, ' ')}..."`);
+
+                // Find the Comment button within this post card
+                const commentBtn = post.locator('button:has-text("Comment"), button[aria-label*="Comment"], button.comment-button, button.artdeco-button:has-text("Comment")').first();
+                
+                if (await commentBtn.isVisible({ timeout: 3000 })) {
+                    console.log("💬 Clicking Comment button...");
+                    await commentBtn.click({ force: true });
+                    await page.waitForTimeout(2000);
+
+                    // Find comment text area editor (LinkedIn uses Quill ql-editor or div[role="textbox"])
+                    const commentInput = post.locator('div.ql-editor, div[role="textbox"], textarea, [aria-placeholder*="comment"]').first();
+                    
+                    if (await commentInput.isVisible({ timeout: 4000 })) {
+                        console.log("✍️ Typing comment: \"Interested\"...");
+                        await commentInput.focus();
+                        await commentInput.fill("Interested");
+                        await page.waitForTimeout(1500);
+
+                        // Find the Post/Submit button
+                        const postSubmitBtn = post.locator('button:has-text("Post"), button.comments-comment-box__submit-button, button[type="submit"]').first();
+                        if (await postSubmitBtn.isVisible({ timeout: 3000 })) {
+                            console.log("🚀 Clicking Post button...");
+                            await postSubmitBtn.click();
+                            commentedCount++;
+                            console.log("✅ Comment posted successfully!");
+                            
+                            // Delay to act like a human and avoid anti-bot block
+                            const delay = Math.floor(Math.random() * 5000) + 5000; // 5-10 seconds pause
+                            console.log(`⏳ Pausing for ${delay/1000} seconds to prevent bot flagging...`);
+                            await page.waitForTimeout(delay);
+                        } else {
+                            console.log("⚠️ Could not locate Post button.");
+                        }
+                    } else {
+                        console.log("⚠️ Could not locate Comment input field.");
+                    }
+                } else {
+                    console.log("ℹ️ Comment button is not visible or comments are disabled for this post.");
+                }
+            }
+        } catch (err) {
+            console.log(`⚠️ Error processing post ${i+1}:`, err.message);
+        }
+    }
+    console.log(`\n🎉 Content scan complete. Commented on ${commentedCount} matching posts.`);
+}
+
 async function run() {
     if (!EMAIL || !PASSWORD) {
         console.error("❌ Please provide LINKEDIN_EMAIL and LINKEDIN_PASSWORD in your .env file.");
@@ -154,6 +225,9 @@ async function run() {
         const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword)}&origin=FACETED_SEARCH&sortBy=%22date_posted%22`;
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(6000);
+
+        // Run the commenting automation
+        await commentOnRelevantPosts(page);
 
         console.log("🎯 Automation template initialized. You can now use the active session page to scan and apply for jobs.");
     } catch (error) {
