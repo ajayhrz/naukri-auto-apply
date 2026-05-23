@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Assistant Dashboard - Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+    
+    <main class="login-container">
+        <div class="glass-card">
+            <div class="brand-section">
+                <div class="logo-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-10.74 0M3 20h18M12 4v10m0-10l-4 4m4-4l4 4" />
+                    </svg>
+                </div>
+                <h1>Antigravity Apply</h1>
+                <p>Manage your automated job application agent</p>
+            </div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="input-group">
+                    <label for="email">Naukri Email Address</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                        </span>
+                        <input type="email" id="email" name="email" placeholder="name@example.com" required autocomplete="email">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Naukri Password</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </span>
+                        <input type="password" id="password" name="password" placeholder="••••••••" required>
+                        <button type="button" class="toggle-password" id="togglePassword" aria-label="Toggle password visibility">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="eye-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <div class="remember-me">
+                        <input type="checkbox" id="remember">
+                        <label for="remember">Remember session</label>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <span>Initialize Assistant</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-arrow">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </button>
+            </form>
+            
+            <div class="footer-note">
+                <p>Your credentials are saved locally to your environment config.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const togglePassword = document.querySelector('#togglePassword');
+        const password = document.querySelector('#password');
+
+        togglePassword.addEventListener('click', function (e) {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            this.classList.toggle('active');
+        });
+
+        const form = document.getElementById('loginForm');
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+            submitBtn.querySelector('span').innerText = 'Starting Agent...';
+            
+            // Simulating save to config/env local connection
+            setTimeout(() => {
+                submitBtn.classList.remove('loading');
+                submitBtn.querySelector('span').innerText = 'Agent Connected!';
+                alert('Assistant configured successfully! Session initialized.');
+                submitBtn.disabled = false;
+            }, 1800);
+        });
+    </script>
+</body>
+</html>

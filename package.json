@@ -14,5 +14,8 @@
     "dotenv": "^17.4.2",
     "nodemailer": "^8.0.7",
     "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "@playwright/mcp": "^0.0.75"
   }
 }

@@ -10,9 +10,8 @@ const APP_PASSWORD = process.env.EMAIL_APP_PASSWORD || process.env.NAUKRI_PASSWO
 console.log("==================================================");
 console.log("🕒 NAUKRI AUTO-UPDATER STARTED");
 console.log("==================================================");
-console.log("Your profile will be automatically updated every 2 hours.");
-console.log("Email notifications will be sent to: " + MY_EMAIL);
-console.log("Press Ctrl+C to stop it at any time.\n");
+console.log("This script will run exactly once, send an email, and automatically exit.");
+console.log("Email notifications will be sent to: " + MY_EMAIL + "\n");
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -60,7 +59,7 @@ function runUpdater() {
     });
     
     child.on('close', async (code) => {
-        console.log(`\n[${new Date().toLocaleString()}] ✅ Updater finished.`);
+        console.log(`\n[${new Date().toLocaleString()}] ✅ Updater script finished.`);
         
         // Check logs to see if it actually bumped the profile successfully
         const isSuccess = logs.includes("Successfully updated Resume Headline");
@@ -68,12 +67,10 @@ function runUpdater() {
         console.log(`➡️  Sending email report...`);
         await sendNotification(isSuccess, logs);
         
-        console.log(`💤 Sleeping for 2 hours...`);
+        console.log(`✅ All done! Exiting terminal automatically...`);
+        process.exit(isSuccess ? 0 : 1);
     });
 }
 
-// Run immediately on start
+// Run immediately and exit when done
 runUpdater();
-
-// Run every 2 hours
-setInterval(runUpdater, TWO_HOURS_MS);
