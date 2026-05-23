@@ -79,6 +79,10 @@ async function run() {
         await page.waitForURL(/.*linkedin.com\/(feed|checkpoint).*/, { timeout: 60000 });
 
         console.log("✅ Successfully logged into LinkedIn feed.");
+        
+        // Wait 5 seconds as requested
+        console.log("⏳ Waiting for 5 seconds...");
+        await page.waitForTimeout(5000);
 
         // Navigate to Jobs portal
         console.log("➡️ Navigating to LinkedIn Jobs...");
