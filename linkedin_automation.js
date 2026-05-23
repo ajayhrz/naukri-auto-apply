@@ -29,10 +29,20 @@ async function resilientAction(page, actionName, locators, actionType = 'click',
 
 async function commentOnRelevantPosts(page) {
     console.log("🔍 Scanning search result posts for software testing openings...");
+
+    // Wait for post elements to load
+    const postSelector = '.reusable-search__result-container, [data-urn], article, .search-results-container li, .feed-shared-update-v2';
+    await page.waitForSelector(postSelector, { timeout: 15000 }).catch(() => null);
     
     // Find all post containers on LinkedIn search results page
-    const posts = await page.locator('.reusable-search__result-container, [data-urn], article, .search-results-container li').all();
+    const posts = await page.locator(postSelector).all();
     console.log(`📊 Found ${posts.length} potential post cards on page.`);
+
+    if (posts.length === 0) {
+        console.log("⚠️ No posts found on page. Saving screenshot to debug...");
+        await page.screenshot({ path: 'linkedin_search_results.png' }).catch(() => {});
+        console.log("📸 Screenshot saved to 'linkedin_search_results.png'");
+    }
 
     let commentedCount = 0;
 
