@@ -65,7 +65,9 @@ async function run() {
             console.log("⏳ Waiting for login page form fields to be visible...");
             const loginFormLoaded = await page.waitForSelector('#username, #session_key, input[name="session_key"], input[type="email"]', { state: 'visible', timeout: 15000 }).catch(() => null);
             if (!loginFormLoaded) {
-                console.log("⚠️ Login form took too long to load or CAPTCHA/MFA challenge is shown on load. Proceeding with fallback detection...");
+                console.log("⚠️ Login form took too long to load. Saving screenshot to debug...");
+                await page.screenshot({ path: 'linkedin_login_error.png' }).catch(() => {});
+                console.log("📸 Screenshot saved to 'linkedin_login_error.png'. Proceeding with fallback detection...");
             }
 
             // Fill credentials using self-healing actions
