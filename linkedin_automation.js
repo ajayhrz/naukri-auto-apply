@@ -148,6 +148,13 @@ async function run() {
         await page.goto('https://www.linkedin.com/jobs/', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(5000);
 
+        // Search for recent posts based on JOB_KEYWORD
+        const keyword = process.env.JOB_KEYWORD || "Software Testing";
+        console.log(`🔍 Searching LinkedIn for recent posts on: "${keyword}"...`);
+        const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword)}&origin=FACETED_SEARCH&sortBy=%22date_posted%22`;
+        await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(6000);
+
         console.log("🎯 Automation template initialized. You can now use the active session page to scan and apply for jobs.");
     } catch (error) {
         console.error("❌ Error during LinkedIn automation run:", error.message);
