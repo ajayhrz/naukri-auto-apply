@@ -416,10 +416,25 @@ async function run() {
             if (skipDueToExperience) continue;
 
             // Open the job in a new tab so we don't lose our search results page
-            const [jobPage] = await Promise.all([
-                context.waitForEvent('page'),
-                job.locator('a.title').first().click()
-            ]);
+            let jobPage;
+            try {
+                if (page.isClosed() || !browser.isConnected()) {
+                    console.log("ℹ️ Browser or page was closed. Exiting job loop.");
+                    break;
+                }
+                const [targetPage] = await Promise.all([
+                    context.waitForEvent('page'),
+                    job.locator('a.title').first().click()
+                ]);
+                jobPage = targetPage;
+            } catch (err) {
+                if (err.message.includes('closed') || err.message.includes('detached') || err.message.includes('browser has been closed')) {
+                    console.log("ℹ️ Browser or page was closed during job processing. Exiting.");
+                    break;
+                }
+                console.error(`❌ Error opening job page: ${err.message}`);
+                continue;
+            }
 
             await jobPage.waitForLoadState('load');
             // Wait up to 10 seconds for page content (title/buttons) to render
@@ -549,9 +564,8 @@ async function run() {
                             for (const input of textInputs) {
                                 if (await input.isVisible() && (await input.isEditable() || await input.getAttribute('contenteditable') === 'true')) {
                                     // Ensure the input is part of the chatbot or modal
-                                    const isInsideChat = await input.evaluate(el => !!el.closest('.chatbot_MessageContainer, [class*="chat"], [class*="modal"], [class*="form"]')).catch(() => false);
-                                    const isFrame = qContext !== jobPage;
-                                    if (!isInsideChat && !isFrame) continue;
+                                    const isInsideChat = await isQuestionnaireElement(input);
+                                    if (!isInsideChat) continue;
 
                                     let qText = await getLocalContext(input, '');
                                     if (!qText || qText.trim().length < 3) {
@@ -701,7 +715,17 @@ async function run() {
                             }
 
                             // 3. Radio Options (labels/inputs)
-                            const radioLabels = await qContext.locator('label.ssrc__label, .ssrc__radio-btn-container label, input[type="radio"]:not(.hidden), div.chatbot_RadioButtonContainer label, .chatbot_RadioOption label, .chatbot_RadioOption input, div[class*="radio"] label, [class*="Radio"] label').all();
+                            const rawRadioLabels = await qContext.locator('label.ssrc__label, .ssrc__radio-btn-container label, input[type="radio"]:not(.hidden), div.chatbot_RadioButtonContainer label, div.chatbot_RadioButtonContainer div, .chatbot_RadioOption, .chatbot_RadioOption label, .chatbot_RadioOption input, div[class*="radio"] label, [class*="Radio"] label, [role="radio"], [class*="radio-option" i], [class*="radio-btn" i]').all();
+                            
+                            const radioLabels = [];
+                            for (const el of rawRadioLabels) {
+                                try {
+                                    if (await el.isVisible() && await isQuestionnaireElement(el)) {
+                                        radioLabels.push(el);
+                                    }
+                                } catch (e) {}
+                            }
+
                             let radioAnswered = false;
 
                             if (radioLabels.length > 0) {
@@ -709,10 +733,12 @@ async function run() {
                                 
                                 let qText = '';
                                 for (const el of radioLabels) {
-                                    if (await el.isVisible()) {
-                                        qText = await getLocalContext(el, '');
-                                        if (qText && qText.trim().length > 3) break;
-                                    }
+                                    try {
+                                        if (await el.isVisible()) {
+                                            qText = await getLocalContext(el, '');
+                                            if (qText && qText.trim().length > 3) break;
+                                        }
+                                    } catch (e) {}
                                 }
                                 if (!qText || qText.trim().length < 3) {
                                     qText = bodyText.toLowerCase();
@@ -947,7 +973,11 @@ async function run() {
                 fs.writeFileSync('./processed_jobs.json', JSON.stringify(processedJobs, null, 2));
             }
 
-            await jobPage.close();
+            try {
+                if (jobPage && !jobPage.isClosed()) {
+                    await jobPage.close();
+                }
+            } catch (e) {}
 
             // Random delay to mimic human behavior and avoid getting blocked
             const delay = Math.floor(Math.random() * 3000) + 2000;
