@@ -392,6 +392,48 @@ async function run() {
                 }
             } catch (e) { }
 
+            // --- Check Job Title matches relevant keywords ---
+            let skipDueToTitle = false;
+            let jobTitleText = "";
+            try {
+                const titleElement = job.locator('a.title').first();
+                if (await titleElement.isVisible()) {
+                    jobTitleText = await titleElement.textContent();
+                    const lowercaseTitle = jobTitleText.toLowerCase();
+                    
+                    const RELEVANT_KEYWORDS = [
+                        'test', 'testing', 'qa', 'sdet', 'quality assurance', 'quality analyst', 'quality control'
+                    ];
+                    if (process.env.JOB_KEYWORD) {
+                        process.env.JOB_KEYWORD.split(',').forEach(k => {
+                            const cleanK = k.trim().toLowerCase();
+                            if (cleanK && !RELEVANT_KEYWORDS.includes(cleanK)) {
+                                RELEVANT_KEYWORDS.push(cleanK);
+                            }
+                        });
+                    }
+                    
+                    const isRelevant = RELEVANT_KEYWORDS.some(kw => {
+                        const regex = new RegExp(`\\b${kw}\\b|${kw}`);
+                        return regex.test(lowercaseTitle);
+                    });
+                    
+                    if (!isRelevant) {
+                        skipDueToTitle = true;
+                        console.log(`\n--------------------------------------------------`);
+                        console.log(`🚫 Skipping Job: Title "${jobTitleText.trim()}" does not match Software Testing/QA profile.`);
+                    }
+                }
+            } catch (e) { }
+
+            if (skipDueToTitle) {
+                if (jobUrl && !processedJobs.includes(jobUrl)) {
+                    processedJobs.push(jobUrl);
+                    try { fs.writeFileSync('./processed_jobs.json', JSON.stringify(processedJobs, null, 2)); } catch (e) {}
+                }
+                continue;
+            }
+
             // --- Check Experience Requirement before opening ---
             let skipDueToExperience = false;
             try {
@@ -413,7 +455,13 @@ async function run() {
                 }
             } catch (e) { }
 
-            if (skipDueToExperience) continue;
+            if (skipDueToExperience) {
+                if (jobUrl && !processedJobs.includes(jobUrl)) {
+                    processedJobs.push(jobUrl);
+                    try { fs.writeFileSync('./processed_jobs.json', JSON.stringify(processedJobs, null, 2)); } catch (e) {}
+                }
+                continue;
+            }
 
             // Open the job in a new tab so we don't lose our search results page
             let jobPage;
@@ -715,7 +763,7 @@ async function run() {
                             }
 
                             // 3. Radio Options (labels/inputs)
-                            const rawRadioLabels = await qContext.locator('label.ssrc__label, .ssrc__radio-btn-container label, input[type="radio"]:not(.hidden), div.chatbot_RadioButtonContainer label, div.chatbot_RadioButtonContainer div, .chatbot_RadioOption, .chatbot_RadioOption label, .chatbot_RadioOption input, div[class*="radio"] label, [class*="Radio"] label, [role="radio"], [class*="radio-option" i], [class*="radio-btn" i]').all();
+                            const rawRadioLabels = await qContext.locator('label.ssrc__label, .ssrc__radio-btn-container label, input[type="radio"]:not(.hidden), div.chatbot_RadioButtonContainer label, .chatbot_RadioOption, .chatbot_RadioOption label, .chatbot_RadioOption input, div[class*="radio"] label, [class*="Radio"] label, [role="radio"], [class*="radio-option" i], [class*="radio-btn" i]').all();
                             
                             const radioLabels = [];
                             for (const el of rawRadioLabels) {
@@ -870,7 +918,27 @@ async function run() {
                                 if (elementToClick) {
                                     const optName = (await elementToClick.innerText().catch(() => '')).trim();
                                     console.log(`🔘 Selecting radio option: "${optName || 'First'}" (Context: "${qText.substring(0, 100).replace(/\n/g, ' ')}")`);
-                                    await elementToClick.click({ force: true }).catch(() => {});
+                                    
+                                    try {
+                                        await elementToClick.click().catch(() => {});
+                                        await jobPage.waitForTimeout(200);
+                                        
+                                        await elementToClick.evaluate(el => {
+                                            if (typeof el.click === 'function') el.click();
+                                            el.dispatchEvent(new Event('click', { bubbles: true }));
+                                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                                            
+                                            // Click children recursive to trigger nested React listeners
+                                            const children = el.querySelectorAll('*');
+                                            children.forEach(child => {
+                                                if (typeof child.click === 'function') {
+                                                    child.click();
+                                                    child.dispatchEvent(new Event('click', { bubbles: true }));
+                                                }
+                                            });
+                                        }).catch(() => {});
+                                    } catch (err) {}
+                                    
                                     radioAnswered = true;
                                 }
                             }
@@ -1091,8 +1159,12 @@ async function run() {
 
     console.log("Closing browser...");
     const waitTime = isHeadless ? 1000 : 5000;
-    await page.waitForTimeout(waitTime);
-    await browser.close();
+    try {
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        if (browser && browser.isConnected()) {
+            await browser.close();
+        }
+    } catch (e) {}
     process.exit(0);
 }
 
