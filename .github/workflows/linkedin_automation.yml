@@ -1,13 +1,13 @@
-name: Naukri Auto-Updater
+name: LinkedIn Automation
 
 on:
   schedule:
-    # Runs every 2 hours
-    - cron: '0 */2 * * *'
+    # Runs every 1 hour
+    - cron: '0 * * * *'
   workflow_dispatch: # Allows you to manually trigger it from the GitHub UI
 
 jobs:
-  run-updater:
+  run-automation:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,11 +24,10 @@ jobs:
         npm ci
         npx playwright install --with-deps chromium
 
-    - name: Run Profile Updater
+    - name: Run LinkedIn Automation
       env:
-        NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
-        NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
+        LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
+        LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
         EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
-        # The environment variable below tells Playwright to run in headless mode
         GITHUB_ACTIONS: true
-      run: node auto_updater.js
+      run: node linkedin_auto_updater.js

@@ -2,15 +2,13 @@ const { spawn } = require('child_process');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// 2 hours in milliseconds
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const MY_EMAIL = 'am618035@gmail.com';
-const APP_PASSWORD = process.env.EMAIL_APP_PASSWORD || process.env.NAUKRI_PASSWORD;
+const APP_PASSWORD = process.env.EMAIL_APP_PASSWORD || process.env.LINKEDIN_PASSWORD;
 
 console.log("==================================================");
-console.log("🕒 NAUKRI AUTO-UPDATER STARTED");
+console.log("🕒 LINKEDIN AUTOMATION RUNNER STARTED");
 console.log("==================================================");
-console.log("This script will run exactly once, send an email, and automatically exit.");
+console.log("This script will run the LinkedIn automation script, send an email, and exit.");
 console.log("Email notifications will be sent to: " + MY_EMAIL + "\n");
 
 const transporter = nodemailer.createTransport({
@@ -27,8 +25,8 @@ async function sendNotification(success, details) {
     const mailOptions = {
         from: MY_EMAIL,
         to: MY_EMAIL,
-        subject: `Naukri Auto-Updater: ${status}`,
-        text: `The Naukri Profile Auto-Updater ran at ${new Date().toLocaleString()}.\n\nStatus: ${status}\n\nLogs:\n${details}`
+        subject: `LinkedIn Automation: ${status}`,
+        text: `The LinkedIn Automation ran at ${new Date().toLocaleString()}.\n\nStatus: ${status}\n\nLogs:\n${details}`
     };
 
     try {
@@ -40,11 +38,10 @@ async function sendNotification(success, details) {
     }
 }
 
-function runUpdater() {
-    console.log(`\n[${new Date().toLocaleString()}] 🚀 Launching Profile Updater...`);
+function runAutomation() {
+    console.log(`\n[${new Date().toLocaleString()}] 🚀 Launching LinkedIn Automation...`);
     
-    // Spawn the child process for update_profile.js
-    const child = spawn('node', ['update_profile.js', '--once']);
+    const child = spawn('node', ['linkedin_automation.js']);
     
     let logs = "";
     
@@ -59,18 +56,17 @@ function runUpdater() {
     });
     
     child.on('close', async (code) => {
-        console.log(`\n[${new Date().toLocaleString()}] ✅ Updater script finished.`);
+        console.log(`\n[${new Date().toLocaleString()}] ✅ Automation script finished with code ${code}.`);
         
-        // Check logs to see if it actually bumped the profile successfully
-        const isSuccess = logs.includes("Successfully updated Resume Headline");
+        // Success criteria: exited with 0 AND content scan completed successfully
+        const isSuccess = (code === 0) && logs.includes("Content scan complete");
         
         console.log(`➡️  Sending email report...`);
         await sendNotification(isSuccess, logs);
         
-        console.log(`✅ All done! Exiting terminal automatically...`);
+        console.log(`✅ All done! Exiting...`);
         process.exit(isSuccess ? 0 : 1);
     });
 }
 
-// Run immediately and exit when done
-runUpdater();
+runAutomation();

@@ -1,4 +1,4 @@
-name: Naukri Auto-Updater
+name: Naukri Auto-Apply
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # Allows you to manually trigger it from the GitHub UI
 
 jobs:
-  run-updater:
+  run-auto-apply:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,11 +24,13 @@ jobs:
         npm ci
         npx playwright install --with-deps chromium
 
-    - name: Run Profile Updater
+    - name: Run Job Assistant
       env:
         NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
         NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
         EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+        JOB_KEYWORD: ${{ secrets.JOB_KEYWORD }}
+        CITIES: ${{ secrets.CITIES }}
         # The environment variable below tells Playwright to run in headless mode
         GITHUB_ACTIONS: true
-      run: node auto_updater.js
+      run: node index_runner.js

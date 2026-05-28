@@ -241,8 +241,11 @@ async function run() {
 
     console.log("🚀 Starting Playwright Job Assistant...");
 
+    const isHeadless = process.env.GITHUB_ACTIONS === 'true';
+    console.log(`Launching browser: headless=${isHeadless}`);
+
     // Launch browser in non-headless mode so you can see it and handle CAPTCHAs if they appear
-    const browser = await chromium.launch({ headless: false, slowMo: 150 });
+    const browser = await chromium.launch({ headless: isHeadless, slowMo: isHeadless ? 0 : 150 });
     const context = await browser.newContext({
         viewport: { width: 1280, height: 720 },
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -1056,9 +1059,14 @@ async function run() {
         console.log("⚠️ Error fetching application statuses:", err.message);
     }
 
-    console.log("Closing browser in 5 seconds...");
-    await page.waitForTimeout(5000);
+    console.log("Closing browser...");
+    const waitTime = isHeadless ? 1000 : 5000;
+    await page.waitForTimeout(waitTime);
     await browser.close();
+    process.exit(0);
 }
 
-run().catch(console.error);
+run().catch(err => {
+    console.error("❌ Uncaught exception:", err);
+    process.exit(1);
+});

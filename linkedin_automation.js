@@ -337,16 +337,24 @@ async function run() {
 
     console.log("🚀 Starting Playwright LinkedIn Automation with Persistent Context...");
 
-    // Launch persistent Chrome context to keep cookies/session state
-    const context = await chromium.launchPersistentContext('./linkedin-user-data', {
-        headless: false,
-        channel: 'chrome', // Use real Google Chrome to avoid playwright-specific fingerprinting
-        viewport: null, // Let it use native viewport
+    const isHeadless = process.env.GITHUB_ACTIONS === 'true';
+    console.log(`Launching browser: headless=${isHeadless}`);
+
+    const launchOptions = {
+        headless: isHeadless,
+        viewport: isHeadless ? { width: 1280, height: 720 } : null,
         args: [
-            '--disable-blink-features=AutomationControlled', // Disable navigator.webdriver flag
-            '--start-maximized'
+            '--disable-blink-features=AutomationControlled'
         ]
-    });
+    };
+
+    if (!isHeadless) {
+        launchOptions.channel = 'chrome';
+        launchOptions.args.push('--start-maximized');
+    }
+
+    // Launch persistent Chrome context to keep cookies/session state
+    const context = await chromium.launchPersistentContext('./linkedin-user-data', launchOptions);
 
     const page = context.pages()[0] || await context.newPage();
 
@@ -463,13 +471,22 @@ async function run() {
         console.log("🎯 Automation template initialized. You can now use the active session page to scan and apply for jobs.");
     } catch (error) {
         console.error("❌ Error during LinkedIn automation run:", error.message);
+        process.exit(1);
     } finally {
-        // Keep the browser open for 15 seconds so you can see the active page before closing
-        console.log("⏳ Keeping browser open for 15 seconds...");
-        await page.waitForTimeout(15000);
-        await context.close();
+        const waitTime = isHeadless ? 1000 : 15000;
+        console.log(`⏳ Keeping browser open for ${waitTime / 1000} seconds...`);
+        try {
+            await page.waitForTimeout(waitTime).catch(() => {});
+        } catch (e) {}
+        try {
+            await context.close().catch(() => {});
+        } catch (e) {}
         console.log("Browser closed. Run completed.");
     }
+    process.exit(0);
 }
 
-run().catch(console.error);
+run().catch(err => {
+    console.error("❌ Uncaught exception:", err);
+    process.exit(1);
+});

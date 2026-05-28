@@ -26,8 +26,7 @@ async function resilientAction(page, actionName, locators, actionType = 'click',
 
 async function runProfileUpdater() {
     if (!EMAIL || !PASSWORD) {
-        console.error("❌ Please provide NAUKRI_EMAIL and NAUKRI_PASSWORD in the .env file.");
-        return;
+        throw new Error("Missing NAUKRI_EMAIL or NAUKRI_PASSWORD environment variables.");
     }
 
     console.log("🚀 Starting Profile Updater...");
@@ -97,56 +96,60 @@ async function runProfileUpdater() {
         page.locator('span:has-text("Resume headline")').locator('xpath=ancestor::div[1]//span[contains(@class, "edit")]')
     ]);
 
-    if (clickedEdit) {
-        console.log("✅ Clicked Edit Resume Headline.");
-        await page.waitForTimeout(2000); // Wait for modal to open
-        
-        const textArea = page.locator('textarea#resumeHeadlineTxt, textarea[placeholder*="Resume Headline"], form textarea').first();
-        if (await textArea.isVisible({ timeout: 5000 })) {
-            let currentText = await textArea.inputValue();
-            console.log(`📝 Current Headline: "${currentText}"`);
-            
-            if (currentText) {
-                currentText = currentText.trim();
-                let newText = "";
-                if (currentText.endsWith('.')) {
-                    newText = currentText.slice(0, -1); // Remove the dot
-                    console.log("🔄 Dot found at the end. Removing it to bump profile...");
-                } else {
-                    newText = currentText + "."; // Add the dot
-                    console.log("🔄 No dot at the end. Adding one to bump profile...");
-                }
-                
-                await textArea.fill(newText);
-                await page.waitForTimeout(1000);
-                
-                // Click Save
-                console.log("🔍 Looking for Save or Update button...");
-                const clickedSave = await resilientAction(page, 'Save Headline', [
-                    page.locator('button:has-text("Save")'),
-                    page.locator('button:has-text("Save ")'),
-                    page.locator('button:has-text("SAVE")'),
-                    page.locator('button:has-text("Update")'),
-                    page.locator('button:has-text("UPDATE")'),
-                    page.locator('text="Save"').locator('visible=true').last(),
-                    page.locator('form button').first()
-                ]);
-
-                if (clickedSave) {
-                    await page.waitForTimeout(2000); // User requested 2 second wait
-                    console.log("🎉 Successfully updated Resume Headline! Your profile is now bumped to active.");
-                } else {
-                    console.log("❌ Could not find Save button.");
-                }
-            } else {
-                console.log("❌ Resume Headline is currently empty. Please add one manually first.");
-            }
-        } else {
-             console.log("❌ Could not find the text area.");
-        }
-    } else {
-        console.log("❌ Could not open the Resume Headline edit modal.");
+    if (!clickedEdit) {
+        await browser.close();
+        throw new Error("Could not open the Resume Headline edit modal.");
     }
+
+    console.log("✅ Clicked Edit Resume Headline.");
+    await page.waitForTimeout(2000); // Wait for modal to open
+    
+    const textArea = page.locator('textarea#resumeHeadlineTxt, textarea[placeholder*="Resume Headline"], form textarea').first();
+    if (!(await textArea.isVisible({ timeout: 5000 }))) {
+        await browser.close();
+        throw new Error("Could not find the Resume Headline text area.");
+    }
+
+    let currentText = await textArea.inputValue();
+    console.log(`📝 Current Headline: "${currentText}"`);
+    
+    if (!currentText) {
+        await browser.close();
+        throw new Error("Resume Headline is currently empty. Please add one manually first.");
+    }
+
+    currentText = currentText.trim();
+    let newText = "";
+    if (currentText.endsWith('.')) {
+        newText = currentText.slice(0, -1); // Remove the dot
+        console.log("🔄 Dot found at the end. Removing it to bump profile...");
+    } else {
+        newText = currentText + "."; // Add the dot
+        console.log("🔄 No dot at the end. Adding one to bump profile...");
+    }
+    
+    await textArea.fill(newText);
+    await page.waitForTimeout(1000);
+    
+    // Click Save
+    console.log("🔍 Looking for Save or Update button...");
+    const clickedSave = await resilientAction(page, 'Save Headline', [
+        page.locator('button:has-text("Save")'),
+        page.locator('button:has-text("Save ")'),
+        page.locator('button:has-text("SAVE")'),
+        page.locator('button:has-text("Update")'),
+        page.locator('button:has-text("UPDATE")'),
+        page.locator('text="Save"').locator('visible=true').last(),
+        page.locator('form button').first()
+    ]);
+
+    if (!clickedSave) {
+        await browser.close();
+        throw new Error("Could not find or click the Save button.");
+    }
+
+    await page.waitForTimeout(2000); // User requested 2 second wait
+    console.log("🎉 Successfully updated Resume Headline! Your profile is now bumped to active.");
 
     console.log("Closing browser...");
     await page.waitForTimeout(1000);
@@ -156,14 +159,18 @@ async function runProfileUpdater() {
 const INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 async function startLoop() {
-    if (process.argv.includes('--once')) {
+    const isCI = process.env.GITHUB_ACTIONS === 'true';
+    const isOnce = process.argv.includes('--once');
+    
+    if (isOnce || isCI) {
         try {
             await runProfileUpdater();
+            console.log("Exiting with status 0.");
+            process.exit(0);
         } catch (err) {
             console.error("❌ Error in runProfileUpdater:", err.message);
+            process.exit(1);
         }
-        console.log("Exiting because --once flag was passed.");
-        process.exit(0);
     }
     while (true) {
         try {
