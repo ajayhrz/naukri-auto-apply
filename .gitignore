@@ -3,3 +3,4 @@ node_modules/
 linkedin-user-data/
 *.png
 seen_notifications.json
+application_statuses.json
