@@ -2,8 +2,8 @@ name: Naukri Auto-Updater
 
 on:
   schedule:
-    # Runs every 2 hours
-    - cron: '0 */2 * * *'
+    # Runs every hour
+    - cron: '0 * * * *'
   workflow_dispatch: # Allows you to manually trigger it from the GitHub UI
 
 jobs:

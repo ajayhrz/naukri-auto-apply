@@ -2,8 +2,8 @@ const { spawn } = require('child_process');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// 2 hours in milliseconds
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+// 1 hour in milliseconds
+const ONE_HOUR_MS = 1 * 60 * 60 * 1000;
 const MY_EMAIL = 'am618035@gmail.com';
 const APP_PASSWORD = process.env.EMAIL_APP_PASSWORD || process.env.NAUKRI_PASSWORD;
 

@@ -156,7 +156,7 @@ async function runProfileUpdater() {
     await browser.close();
 }
 
-const INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const INTERVAL_MS = 1 * 60 * 60 * 1000; // 1 hour
 
 async function startLoop() {
     const isCI = process.env.GITHUB_ACTIONS === 'true';
@@ -178,7 +178,7 @@ async function startLoop() {
         } catch (err) {
             console.error("❌ Error in runProfileUpdater loop iteration:", err.message);
         }
-        console.log(`🕒 Profile Updater loop active. Updating again in 2 hours...`);
+        console.log(`🕒 Profile Updater loop active. Updating again in 1 hour...`);
         await new Promise(resolve => setTimeout(resolve, INTERVAL_MS));
     }
 }
