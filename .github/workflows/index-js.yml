@@ -1,0 +1,39 @@
+name: Index.js Pipeline
+
+on:
+  push:
+    paths:
+      - 'index.js'
+  pull_request:
+    paths:
+      - 'index.js'
+  workflow_dispatch:
+
+jobs:
+  run-index-js:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run index.js
+        env:
+          NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
+          NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          JOB_KEYWORD: ${{ secrets.JOB_KEYWORD }}
+          RESUME_PATH: ${{ secrets.RESUME_PATH }}
+          CITIES: ${{ secrets.CITIES }}
+          GITHUB_ACTIONS: true
+        run: node index.js

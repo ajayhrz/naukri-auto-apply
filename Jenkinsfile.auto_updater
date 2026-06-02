@@ -1,0 +1,44 @@
+pipeline {
+  agent any
+
+  environment {
+    GITHUB_ACTIONS = 'true'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Prepare') {
+      steps {
+        sh 'node --version'
+        sh 'npm --version'
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        sh 'npm ci'
+        sh 'npx playwright install --with-deps chromium'
+      }
+    }
+
+    stage('Run Auto Updater') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'NAUKRI_EMAIL', variable: 'NAUKRI_EMAIL'),
+          string(credentialsId: 'NAUKRI_PASSWORD', variable: 'NAUKRI_PASSWORD'),
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD'),
+          string(credentialsId: 'JOB_KEYWORD', variable: 'JOB_KEYWORD'),
+          string(credentialsId: 'CITIES', variable: 'CITIES'),
+          string(credentialsId: 'RESUME_PATH', variable: 'RESUME_PATH')
+        ]) {
+          sh 'node auto_updater.js'
+        }
+      }
+    }
+  }
+}
