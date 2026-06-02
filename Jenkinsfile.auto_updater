@@ -47,13 +47,15 @@ pipeline {
         withCredentials([
           string(credentialsId: 'NAUKRI_EMAIL', variable: 'NAUKRI_EMAIL'),
           string(credentialsId: 'NAUKRI_PASSWORD', variable: 'NAUKRI_PASSWORD'),
-          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD'),
-          file(credentialsId: 'NAUKRI_STORAGE_STATE', variable: 'NAUKRI_STORAGE_STATE_FILE')
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD')
         ]) {
           sh '''
             mkdir -p "$WORKSPACE/.auth"
-            cp "$NAUKRI_STORAGE_STATE_FILE" "$WORKSPACE/.auth/naukri-state.json"
             export NAUKRI_STORAGE_STATE_PATH="$WORKSPACE/.auth/naukri-state.json"
+            if [ -f "${JENKINS_HOME}/naukri-session/naukri-state.json" ]; then
+              cp "${JENKINS_HOME}/naukri-session/naukri-state.json" "$NAUKRI_STORAGE_STATE_PATH"
+              echo "Using saved Naukri session from JENKINS_HOME/naukri-session/"
+            fi
             if command -v xvfb-run >/dev/null 2>&1; then
               xvfb-run -a node auto_updater.js
             else
