@@ -44,7 +44,10 @@ function runUpdater() {
     console.log(`\n[${new Date().toLocaleString()}] 🚀 Launching Profile Updater...`);
     
     // Spawn the child process for update_profile.js
-    const child = spawn('node', ['update_profile.js', '--once']);
+    const child = spawn('node', ['update_profile.js', '--once'], {
+        env: process.env,
+        cwd: __dirname,
+    });
     
     let logs = "";
     

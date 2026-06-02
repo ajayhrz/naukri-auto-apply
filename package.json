@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "save-session": "node scripts/save-naukri-session.js",
+    "profile-update": "node update_profile.js --once",
+    "auto-updater": "node auto_updater.js"
   },
   "keywords": [],
   "author": "",

@@ -6,7 +6,6 @@ pipeline {
   }
 
   triggers {
-    // Run every hour (H spreads load across the hour on shared Jenkins)
     cron('H * * * *')
   }
 
@@ -17,7 +16,9 @@ pipeline {
   }
 
   environment {
-    GITHUB_ACTIONS = 'true'
+    // Naukri blocks headless Playwright; use headed Chromium (xvfb on Linux agents).
+    PLAYWRIGHT_HEADLESS = 'false'
+    NAUKRI_STORAGE_STATE_PATH = "${WORKSPACE}/.auth/naukri-state.json"
   }
 
   stages {
@@ -46,9 +47,19 @@ pipeline {
         withCredentials([
           string(credentialsId: 'NAUKRI_EMAIL', variable: 'NAUKRI_EMAIL'),
           string(credentialsId: 'NAUKRI_PASSWORD', variable: 'NAUKRI_PASSWORD'),
-          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD')
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD'),
+          file(credentialsId: 'NAUKRI_STORAGE_STATE', variable: 'NAUKRI_STORAGE_STATE_FILE')
         ]) {
-          sh 'node auto_updater.js'
+          sh '''
+            mkdir -p "$WORKSPACE/.auth"
+            cp "$NAUKRI_STORAGE_STATE_FILE" "$WORKSPACE/.auth/naukri-state.json"
+            export NAUKRI_STORAGE_STATE_PATH="$WORKSPACE/.auth/naukri-state.json"
+            if command -v xvfb-run >/dev/null 2>&1; then
+              xvfb-run -a node auto_updater.js
+            else
+              node auto_updater.js
+            fi
+          '''
         }
       }
     }
@@ -56,7 +67,7 @@ pipeline {
 
   post {
     failure {
-      echo 'Auto updater failed. Check console log and email notification.'
+      echo 'Auto updater failed. Run: npm run save-session locally, then add Jenkins secret file NAUKRI_STORAGE_STATE.'
     }
   }
 }

@@ -29,6 +29,5 @@ jobs:
         NAUKRI_EMAIL: ${{ secrets.NAUKRI_EMAIL }}
         NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
         EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
-        # The environment variable below tells Playwright to run in headless mode
-        GITHUB_ACTIONS: true
-      run: node auto_updater.js
+        PLAYWRIGHT_HEADLESS: 'false'
+      run: xvfb-run -a node auto_updater.js
