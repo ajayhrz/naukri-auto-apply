@@ -1,6 +1,21 @@
 pipeline {
   agent any
 
+  tools {
+    nodejs 'NodeJS'
+  }
+
+  triggers {
+    // Run every hour (H spreads load across the hour on shared Jenkins)
+    cron('H * * * *')
+  }
+
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    timestamps()
+  }
+
   environment {
     GITHUB_ACTIONS = 'true'
   }
@@ -31,14 +46,17 @@ pipeline {
         withCredentials([
           string(credentialsId: 'NAUKRI_EMAIL', variable: 'NAUKRI_EMAIL'),
           string(credentialsId: 'NAUKRI_PASSWORD', variable: 'NAUKRI_PASSWORD'),
-          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD'),
-          string(credentialsId: 'JOB_KEYWORD', variable: 'JOB_KEYWORD'),
-          string(credentialsId: 'CITIES', variable: 'CITIES'),
-          string(credentialsId: 'RESUME_PATH', variable: 'RESUME_PATH')
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD')
         ]) {
           sh 'node auto_updater.js'
         }
       }
+    }
+  }
+
+  post {
+    failure {
+      echo 'Auto updater failed. Check console log and email notification.'
     }
   }
 }

@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  tools {
+    nodejs 'NodeJS'
+  }
+
   environment {
     GITHUB_ACTIONS = 'true'
   }
