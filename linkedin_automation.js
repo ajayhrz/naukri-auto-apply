@@ -337,8 +337,9 @@ async function run() {
 
     console.log("🚀 Starting Playwright LinkedIn Automation with Persistent Context...");
 
-    const isHeadless = process.env.GITHUB_ACTIONS === 'true';
-    console.log(`Launching browser: headless=${isHeadless}`);
+    const isHeadless = process.env.PLAYWRIGHT_HEADLESS === 'true';
+    const userDataDir = process.env.LINKEDIN_USER_DATA_DIR || './linkedin-user-data';
+    console.log(`Launching browser: headless=${isHeadless}, userDataDir=${userDataDir}`);
 
     const launchOptions = {
         headless: isHeadless,
@@ -354,7 +355,7 @@ async function run() {
     }
 
     // Launch persistent Chrome context to keep cookies/session state
-    const context = await chromium.launchPersistentContext('./linkedin-user-data', launchOptions);
+    const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
     const page = context.pages()[0] || await context.newPage();
 

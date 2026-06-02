@@ -41,7 +41,10 @@ async function sendNotification(success, details) {
 function runAutoApply() {
     console.log(`\n[${new Date().toLocaleString()}] 🚀 Launching Naukri Auto-Apply...`);
     
-    const child = spawn('node', ['index.js']);
+    const child = spawn('node', ['index.js'], {
+        env: process.env,
+        cwd: __dirname,
+    });
     
     let logs = "";
     

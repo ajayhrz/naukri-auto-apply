@@ -5,8 +5,20 @@ pipeline {
     nodejs 'NodeJS'
   }
 
+  triggers {
+    // Daily run (spread across the hour). Disable if you only want manual builds.
+    cron('H 6 * * *')
+  }
+
+  options {
+    timeout(time: 120, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    timestamps()
+  }
+
   environment {
-    GITHUB_ACTIONS = 'true'
+    PLAYWRIGHT_HEADLESS = 'false'
+    NAUKRI_STORAGE_STATE_PATH = "${WORKSPACE}/.auth/naukri-state.json"
   }
 
   stages {
@@ -30,7 +42,7 @@ pipeline {
       }
     }
 
-    stage('Run Index Script') {
+    stage('Run Naukri Auto-Apply') {
       steps {
         withCredentials([
           string(credentialsId: 'NAUKRI_EMAIL', variable: 'NAUKRI_EMAIL'),
@@ -40,9 +52,32 @@ pipeline {
           string(credentialsId: 'CITIES', variable: 'CITIES'),
           string(credentialsId: 'RESUME_PATH', variable: 'RESUME_PATH')
         ]) {
-          sh 'node index.js'
+          sh '''
+            mkdir -p "$WORKSPACE/.auth"
+            export NAUKRI_STORAGE_STATE_PATH="$WORKSPACE/.auth/naukri-state.json"
+            if [ -f "${JENKINS_HOME}/naukri-session/naukri-state.json" ]; then
+              cp "${JENKINS_HOME}/naukri-session/naukri-state.json" "$NAUKRI_STORAGE_STATE_PATH"
+              echo "Using saved Naukri session from JENKINS_HOME/naukri-session/"
+            fi
+            chmod +x scripts/jenkins-run-node.sh
+            ./scripts/jenkins-run-node.sh index_runner.js
+          '''
         }
       }
+    }
+  }
+
+  post {
+    success {
+      sh '''
+        if [ -f "$WORKSPACE/.auth/naukri-state.json" ]; then
+          mkdir -p "${JENKINS_HOME}/naukri-session"
+          cp "$WORKSPACE/.auth/naukri-state.json" "${JENKINS_HOME}/naukri-session/naukri-state.json"
+        fi
+      '''
+    }
+    failure {
+      echo 'Naukri auto-apply failed. Check console log and email report.'
     }
   }
 }

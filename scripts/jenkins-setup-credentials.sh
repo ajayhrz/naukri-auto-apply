@@ -33,6 +33,12 @@ for key in NAUKRI_EMAIL NAUKRI_PASSWORD EMAIL_APP_PASSWORD; do
   fi
 done
 
+for key in JOB_KEYWORD CITIES RESUME_PATH LINKEDIN_EMAIL LINKEDIN_PASSWORD; do
+  if [[ -z "${!key:-}" ]]; then
+    echo "Warning: ${key} not set in .env (optional for some jobs)"
+  fi
+done
+
 CRUMB_JSON=$(curl -sf -u "$AUTH" "${JENKINS_URL}/crumbIssuer/api/json")
 CRUMB_FIELD=$(echo "$CRUMB_JSON" | sed -n 's/.*"crumbRequestField":"\([^"]*\)".*/\1/p')
 CRUMB=$(echo "$CRUMB_JSON" | sed -n 's/.*"crumb":"\([^"]*\)".*/\1/p')
@@ -73,6 +79,22 @@ EOF
 create_cred "NAUKRI_EMAIL" "Naukri login email" "$NAUKRI_EMAIL"
 create_cred "NAUKRI_PASSWORD" "Naukri login password" "$NAUKRI_PASSWORD"
 create_cred "EMAIL_APP_PASSWORD" "Gmail app password for updater emails" "$EMAIL_APP_PASSWORD"
+
+if [[ -n "${JOB_KEYWORD:-}" ]]; then
+  create_cred "JOB_KEYWORD" "Naukri search keywords" "$JOB_KEYWORD"
+fi
+if [[ -n "${CITIES:-}" ]]; then
+  create_cred "CITIES" "Naukri search cities" "$CITIES"
+fi
+if [[ -n "${RESUME_PATH:-}" ]]; then
+  create_cred "RESUME_PATH" "Resume file path for uploads" "$RESUME_PATH"
+fi
+if [[ -n "${LINKEDIN_EMAIL:-}" ]]; then
+  create_cred "LINKEDIN_EMAIL" "LinkedIn login email" "$LINKEDIN_EMAIL"
+fi
+if [[ -n "${LINKEDIN_PASSWORD:-}" ]]; then
+  create_cred "LINKEDIN_PASSWORD" "LinkedIn login password" "$LINKEDIN_PASSWORD"
+fi
 
 echo "Done. Verify at ${JENKINS_URL}/manage/credentials/store/system/domain/_/"
 echo ""

@@ -1,0 +1,73 @@
+pipeline {
+  agent any
+
+  tools {
+    nodejs 'NodeJS'
+  }
+
+  triggers {
+    cron('H 8 * * *')
+  }
+
+  options {
+    timeout(time: 90, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    timestamps()
+  }
+
+  environment {
+    PLAYWRIGHT_HEADLESS = 'false'
+    LINKEDIN_USER_DATA_DIR = "${WORKSPACE}/linkedin-user-data"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        sh 'npm ci'
+        sh 'npx playwright install --with-deps chromium'
+      }
+    }
+
+    stage('Run LinkedIn Automation') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'LINKEDIN_EMAIL', variable: 'LINKEDIN_EMAIL'),
+          string(credentialsId: 'LINKEDIN_PASSWORD', variable: 'LINKEDIN_PASSWORD'),
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD')
+        ]) {
+          sh '''
+            mkdir -p "$WORKSPACE/linkedin-user-data"
+            if [ -d "${JENKINS_HOME}/linkedin-session/linkedin-user-data" ]; then
+              cp -R "${JENKINS_HOME}/linkedin-session/linkedin-user-data/." "$WORKSPACE/linkedin-user-data/" 2>/dev/null || true
+              echo "Restored LinkedIn session from JENKINS_HOME/linkedin-session/"
+            fi
+            export LINKEDIN_USER_DATA_DIR="$WORKSPACE/linkedin-user-data"
+            chmod +x scripts/jenkins-run-node.sh
+            ./scripts/jenkins-run-node.sh linkedin_auto_updater.js
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      sh '''
+        if [ -d "$WORKSPACE/linkedin-user-data" ]; then
+          mkdir -p "${JENKINS_HOME}/linkedin-session"
+          rm -rf "${JENKINS_HOME}/linkedin-session/linkedin-user-data"
+          cp -R "$WORKSPACE/linkedin-user-data" "${JENKINS_HOME}/linkedin-session/linkedin-user-data"
+        fi
+      '''
+    }
+    failure {
+      echo 'LinkedIn automation failed. Check logs and saved linkedin-user-data session.'
+    }
+  }
+}

@@ -41,7 +41,10 @@ async function sendNotification(success, details) {
 function runAutomation() {
     console.log(`\n[${new Date().toLocaleString()}] 🚀 Launching LinkedIn Automation...`);
     
-    const child = spawn('node', ['linkedin_automation.js']);
+    const child = spawn('node', ['linkedin_automation.js'], {
+        env: process.env,
+        cwd: __dirname,
+    });
     
     let logs = "";
     

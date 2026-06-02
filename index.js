@@ -1,6 +1,11 @@
-const { chromium } = require('playwright');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const {
+    launchNaukriBrowser,
+    createNaukriContext,
+    ensureNaukriLogin,
+    saveStorageState,
+} = require('./lib/naukri_auth');
 require('dotenv').config();
 
 let resumeData = {};
@@ -231,7 +236,7 @@ async function checkAndMailNotifications(context) {
 async function run() {
     if (!EMAIL || !PASSWORD) {
         console.error("❌ Please provide NAUKRI_EMAIL and NAUKRI_PASSWORD in the .env file.");
-        return;
+        process.exit(1);
     }
 
     // Wipe previous failed jobs log to keep it fresh for this run
@@ -241,62 +246,13 @@ async function run() {
 
     console.log("🚀 Starting Playwright Job Assistant...");
 
-    const isHeadless = process.env.GITHUB_ACTIONS === 'true';
-    console.log(`Launching browser: headless=${isHeadless}`);
-
-    // Launch browser in non-headless mode so you can see it and handle CAPTCHAs if they appear
-    const browser = await chromium.launch({ headless: isHeadless, slowMo: isHeadless ? 0 : 150 });
-    const context = await browser.newContext({
-        viewport: { width: 1280, height: 720 },
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        permissions: ['geolocation', 'notifications']
-    });
+    const isHeadless = process.env.PLAYWRIGHT_HEADLESS === 'true';
+    const browser = await launchNaukriBrowser();
+    const context = await createNaukriContext(browser);
+    await context.grantPermissions(['geolocation', 'notifications']);
     const page = await context.newPage();
 
-    console.log("➡️  Navigating to Naukri login...");
-    await page.goto('https://www.naukri.com/nlogin/login', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(3000);
-
-    // Explicitly wait for the form to render
-    try {
-        await page.waitForSelector('#usernameField', { state: 'visible', timeout: 20000 });
-    } catch (e) {
-        console.log("⚠️ Input fields took too long to become visible. Retrying anyway...");
-    }
-
-    console.log("✍️ Filling email field...");
-    const emailFilled = await resilientAction(page, 'Fill Email', [
-        page.locator('#usernameField'),
-        page.locator('input[placeholder*="Email" i]'),
-        page.locator('input[placeholder*="Username" i]'),
-        page.locator('input[name*="email" i]'),
-        page.locator('input[name*="username" i]'),
-        page.getByPlaceholder('Enter your active Email ID / Username')
-    ], 'fill', EMAIL);
-    console.log(emailFilled ? "✅ Email filled." : "❌ Failed to fill email.");
-
-    console.log("✍️ Filling password field...");
-    const passwordFilled = await resilientAction(page, 'Fill Password', [
-        page.locator('#passwordField'),
-        page.locator('input[placeholder*="Password" i]'),
-        page.locator('input[name*="password" i]'),
-        page.locator('input[type="password"]').first(),
-        page.getByPlaceholder('Enter your password')
-    ], 'fill', PASSWORD);
-    console.log(passwordFilled ? "✅ Password filled." : "❌ Failed to fill password.");
-
-    if (emailFilled && passwordFilled) {
-        console.log("Pressing Enter to submit login...");
-        await page.keyboard.press('Enter');
-        try { await page.locator('button[type="submit"]').click({ timeout: 1000 }); } catch (e) { }
-    }
-
-    try {
-        await page.waitForURL(/.*naukri.com\/(mnjuser\/homepage|jobs|mnjuser\/profile).*/, { timeout: 120000 });
-        console.log("✅ Logged in successfully.");
-    } catch (error) {
-        console.log("⚠️  Could not automatically confirm login within 120 seconds. Proceeding anyway...");
-    }
+    await ensureNaukriLogin(page, context, { email: EMAIL, password: PASSWORD });
 
     // Call notification checker right after login
     await checkAndMailNotifications(context).catch(() => {});
@@ -1160,6 +1116,7 @@ async function run() {
     console.log("Closing browser...");
     const waitTime = isHeadless ? 1000 : 5000;
     try {
+        await saveStorageState(context);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         if (browser && browser.isConnected()) {
             await browser.close();

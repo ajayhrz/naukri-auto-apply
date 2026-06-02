@@ -56,11 +56,8 @@ pipeline {
               cp "${JENKINS_HOME}/naukri-session/naukri-state.json" "$NAUKRI_STORAGE_STATE_PATH"
               echo "Using saved Naukri session from JENKINS_HOME/naukri-session/"
             fi
-            if command -v xvfb-run >/dev/null 2>&1; then
-              xvfb-run -a node auto_updater.js
-            else
-              node auto_updater.js
-            fi
+            chmod +x scripts/jenkins-run-node.sh
+            ./scripts/jenkins-run-node.sh auto_updater.js
           '''
         }
       }
