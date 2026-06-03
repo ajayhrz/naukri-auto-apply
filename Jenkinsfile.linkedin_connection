@@ -6,8 +6,8 @@ pipeline {
   }
 
   triggers {
-    // Weekly (Monday). Change or remove for manual-only runs.
-    cron('H 7 * * 1')
+    // Run every hour. Change or remove for manual-only runs.
+    cron('H * * * *')
   }
 
   options {

@@ -6,8 +6,8 @@ pipeline {
   }
 
   triggers {
-    // Daily run (spread across the hour). Disable if you only want manual builds.
-    cron('H 6 * * *')
+    // Run every hour. Disable if you only want manual builds.
+    cron('H * * * *')
   }
 
   options {
