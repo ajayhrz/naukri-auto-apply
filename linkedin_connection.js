@@ -143,10 +143,10 @@ async function run() {
         await page.waitForTimeout(5000);
 
         // Search for software testing hiring managers/recruiters (People filter) with JNV school context
-        const keyword = `"software testing" hiring ("jnv" OR "Navodaya" OR "Jawahar Navodaya")`;
+        const keyword = `"software testing" hiring "`;
         console.log(`🔍 Searching LinkedIn for people matching: "${keyword}"...`);
         const searchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(keyword)}&origin=GLOBAL_SEARCH_HEADER`;
-        
+
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(6000);
 
@@ -154,7 +154,7 @@ async function run() {
         let searchPageCount = 1;
         while (connectedCount < targetCount) {
             console.log(`\n📄 --- Processing Search Result Page ${searchPageCount} ---`);
-            
+
             // Loop through Connect buttons dynamically on the current search page
             let pageHasButtons = true;
             let pageConnectCount = 0;
@@ -162,10 +162,10 @@ async function run() {
             while (pageHasButtons && connectedCount < targetCount) {
                 // Find all potential Connect buttons fresh on each loop to avoid detachment errors
                 const connectButtons = await page.locator('[aria-label^="Invite "][aria-label$="to connect"], [aria-label^="Connect with "]').all();
-                
+
                 let activeBtn = null;
                 let cleanName = "Recruiter";
-                
+
                 // Scan primary buttons to find the first unprocessed one
                 for (const btn of connectButtons) {
                     const ariaLabel = await btn.getAttribute('aria-label').catch(() => '');
@@ -184,14 +184,14 @@ async function run() {
                             return "Recruiter";
                         }).catch(() => "Recruiter");
                     }
-                    
+
                     if (!processedNames.has(name)) {
                         activeBtn = btn;
                         cleanName = name;
                         break;
                     }
                 }
-                
+
                 // Fallback to broader listitem buttons if no primary unprocessed buttons are found
                 if (!activeBtn) {
                     const fallbackButtons = await page.locator('div[role="listitem"] button:has-text("Connect"), div[role="listitem"] a:has-text("Connect"), div[role="listitem"] [role="button"]:has-text("Connect")').all();
@@ -204,7 +204,7 @@ async function run() {
                             }
                             return "Recruiter";
                         }).catch(() => "Recruiter");
-                        
+
                         if (!processedNames.has(name)) {
                             activeBtn = btn;
                             cleanName = name;
@@ -238,7 +238,7 @@ async function run() {
                     }
 
                     console.log(`👉 Sending connection request to: ${cleanName}`);
-                    
+
                     // Check if the button is already pending, sent or disabled
                     const buttonInfo = await activeBtn.evaluate(el => {
                         const text = (el.innerText || '').toLowerCase();
@@ -246,22 +246,22 @@ async function run() {
                         const isDisabled = el.hasAttribute('disabled') || el.classList.contains('disabled');
                         return { text, label, isDisabled };
                     }).catch(() => ({ text: '', label: '', isDisabled: false }));
-                    
-                    if (buttonInfo.isDisabled || 
-                        buttonInfo.text.includes('pending') || 
-                        buttonInfo.text.includes('withdraw') || 
-                        buttonInfo.label.includes('pending') || 
+
+                    if (buttonInfo.isDisabled ||
+                        buttonInfo.text.includes('pending') ||
+                        buttonInfo.text.includes('withdraw') ||
+                        buttonInfo.label.includes('pending') ||
                         buttonInfo.label.includes('withdraw')) {
                         console.log(`ℹ️ Connection request is already pending/sent or button is disabled for ${cleanName}. Skipping.`);
                         continue;
                     }
 
                     await activeBtn.click();
-                    
+
                     // Wait for the modal buttons to be visible
                     const sendWithoutNoteBtn = page.locator('button:has-text("Send without a note"), button[aria-label="Send without a note"]').first();
                     const sendConfirmBtn = page.locator('button:has-text("Send"), button[aria-label="Send"]').first();
-                    
+
                     let modalOpened = false;
                     for (let attempt = 0; attempt < 8; attempt++) {
                         if (await sendWithoutNoteBtn.isVisible() || await sendConfirmBtn.isVisible()) {
@@ -293,20 +293,20 @@ async function run() {
                         } else {
                             console.log(`⚠️ Invitation modal not detected or resolved differently. Skipping.`);
                             // Hit escape to close any lingering modal safely
-                            await page.keyboard.press('Escape').catch(() => {});
+                            await page.keyboard.press('Escape').catch(() => { });
                         }
                     }
 
                     // Check for weekly invitation limit modal
                     const limitDialog = page.locator('div[role="dialog"], [class*="modal"], [class*="dialog"]');
                     const dialogTexts = await limitDialog.allInnerTexts().catch(() => []);
-                    const limitReached = dialogTexts.some(text => 
-                        text.toLowerCase().includes('limit') && 
+                    const limitReached = dialogTexts.some(text =>
+                        text.toLowerCase().includes('limit') &&
                         (text.toLowerCase().includes('reached') || text.toLowerCase().includes('weekly') || text.toLowerCase().includes('out of connection'))
                     );
                     if (limitReached) {
                         console.log("🛑 LinkedIn Weekly Connection Limit reached! Stopping execution.");
-                        await page.keyboard.press('Escape').catch(() => {});
+                        await page.keyboard.press('Escape').catch(() => { });
                         break;
                     }
 
@@ -322,8 +322,8 @@ async function run() {
             // Check if we hit the limit during card iteration or after
             const limitDialog = page.locator('div[role="dialog"], [class*="modal"], [class*="dialog"]');
             const dialogTexts = await limitDialog.allInnerTexts().catch(() => []);
-            const limitReached = dialogTexts.some(text => 
-                text.toLowerCase().includes('limit') && 
+            const limitReached = dialogTexts.some(text =>
+                text.toLowerCase().includes('limit') &&
                 (text.toLowerCase().includes('reached') || text.toLowerCase().includes('weekly') || text.toLowerCase().includes('out of connection'))
             );
             if (limitReached) {
@@ -356,9 +356,9 @@ async function run() {
         const waitTime = isHeadless ? 1000 : 15000;
         console.log(`⏳ Keeping browser open for ${waitTime / 1000} seconds...`);
         try {
-            await page.waitForTimeout(waitTime).catch(() => {});
-            await context.close().catch(() => {});
-        } catch (e) {}
+            await page.waitForTimeout(waitTime).catch(() => { });
+            await context.close().catch(() => { });
+        } catch (e) { }
         console.log("Browser closed. Run completed.");
     }
 }

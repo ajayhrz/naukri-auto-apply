@@ -1,0 +1,131 @@
+pipeline {
+  agent any
+
+  tools {
+    nodejs 'NodeJS'
+  }
+
+  triggers {
+    // Run every hour
+    cron('H * * * *')
+  }
+
+  options {
+    timeout(time: 180, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    timestamps()
+  }
+
+  environment {
+    PLAYWRIGHT_HEADLESS = 'false'
+    NAUKRI_STORAGE_STATE_PATH = "${WORKSPACE}/.auth/naukri-state.json"
+    LINKEDIN_USER_DATA_DIR = "${WORKSPACE}/linkedin-user-data"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        sh 'node --version'
+        sh 'npm --version'
+        sh 'npm ci'
+        sh 'npx playwright install --with-deps chromium'
+      }
+    }
+
+    stage('Run Naukri Auto-Apply (index.js)') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'NAUKRI_EMAIL', variable: 'NAUKRI_EMAIL'),
+          string(credentialsId: 'NAUKRI_PASSWORD', variable: 'NAUKRI_PASSWORD'),
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD'),
+          string(credentialsId: 'JOB_KEYWORD', variable: 'JOB_KEYWORD'),
+          string(credentialsId: 'CITIES', variable: 'CITIES'),
+          string(credentialsId: 'RESUME_PATH', variable: 'RESUME_PATH')
+        ]) {
+          sh '''
+            mkdir -p "$WORKSPACE/.auth"
+            export NAUKRI_STORAGE_STATE_PATH="$WORKSPACE/.auth/naukri-state.json"
+            if [ -f "${JENKINS_HOME}/naukri-session/naukri-state.json" ]; then
+              cp "${JENKINS_HOME}/naukri-session/naukri-state.json" "$NAUKRI_STORAGE_STATE_PATH"
+            fi
+            
+            chmod +x scripts/jenkins-run-node.sh
+            ./scripts/jenkins-run-node.sh index.js
+            
+            # Save Naukri session state back immediately
+            if [ -f "$WORKSPACE/.auth/naukri-state.json" ]; then
+              mkdir -p "${JENKINS_HOME}/naukri-session"
+              cp "$WORKSPACE/.auth/naukri-state.json" "${JENKINS_HOME}/naukri-session/naukri-state.json"
+            fi
+          '''
+        }
+      }
+      post {
+        failure {
+          echo 'index.js failed. Proceeding to next stage...'
+        }
+      }
+    }
+
+    stage('Run LinkedIn Connection') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'LINKEDIN_EMAIL', variable: 'LINKEDIN_EMAIL'),
+          string(credentialsId: 'LINKEDIN_PASSWORD', variable: 'LINKEDIN_PASSWORD'),
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD')
+        ]) {
+          sh '''
+            mkdir -p "$WORKSPACE/linkedin-user-data"
+            if [ -d "${JENKINS_HOME}/linkedin-session/linkedin-user-data" ]; then
+              cp -R "${JENKINS_HOME}/linkedin-session/linkedin-user-data/." "$WORKSPACE/linkedin-user-data/" 2>/dev/null || true
+            fi
+            export LINKEDIN_USER_DATA_DIR="$WORKSPACE/linkedin-user-data"
+            
+            ./scripts/jenkins-run-node.sh linkedin_connection.js
+            
+            # Save LinkedIn session back immediately
+            if [ -d "$WORKSPACE/linkedin-user-data" ]; then
+              mkdir -p "${JENKINS_HOME}/linkedin-session"
+              rm -rf "${JENKINS_HOME}/linkedin-session/linkedin-user-data"
+              cp -R "$WORKSPACE/linkedin-user-data" "${JENKINS_HOME}/linkedin-session/linkedin-user-data"
+            fi
+          '''
+        }
+      }
+      post {
+        failure {
+          echo 'linkedin_connection.js failed. Proceeding to next stage...'
+        }
+      }
+    }
+
+    stage('Run LinkedIn Automation') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'LINKEDIN_EMAIL', variable: 'LINKEDIN_EMAIL'),
+          string(credentialsId: 'LINKEDIN_PASSWORD', variable: 'LINKEDIN_PASSWORD'),
+          string(credentialsId: 'EMAIL_APP_PASSWORD', variable: 'EMAIL_APP_PASSWORD')
+        ]) {
+          sh '''
+            export LINKEDIN_USER_DATA_DIR="$WORKSPACE/linkedin-user-data"
+            
+            ./scripts/jenkins-run-node.sh linkedin_automation.js
+            
+            # Save LinkedIn session back
+            if [ -d "$WORKSPACE/linkedin-user-data" ]; then
+              mkdir -p "${JENKINS_HOME}/linkedin-session"
+              rm -rf "${JENKINS_HOME}/linkedin-session/linkedin-user-data"
+              cp -R "$WORKSPACE/linkedin-user-data" "${JENKINS_HOME}/linkedin-session/linkedin-user-data"
+            fi
+          '''
+        }
+      }
+    }
+  }
+}
