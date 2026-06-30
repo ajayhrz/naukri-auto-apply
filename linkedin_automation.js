@@ -41,17 +41,17 @@ async function scrollAndClick(page, locator) {
     return false;
 }
 
-async function commentOnRelevantPosts(page) {
+async function commentOnRelevantPosts(page, currentCommentedCount = 0, targetComments = 100) {
     console.log("🔍 Scanning search result posts for software testing openings...");
 
     const userName = "Ajay Mishra";
-    let commentedCount = 0;
-    const targetComments = 100;
+    let commentedCount = currentCommentedCount;
     let noNewPostsCount = 0;
-    const maxNoNewPostsScrolls = 15; // Stop if we scroll 15 times and find no new matches
+    let refreshCount = 0;
+    const maxNoNewPostsScrolls = 5; // Reduced from 15 to 5 so it switches countries much faster when feed is dry
 
-    // We keep looping until we hit targetComments or we can't find any more matching posts
-    while (commentedCount < targetComments && noNewPostsCount < maxNoNewPostsScrolls) {
+    // We keep looping until we hit targetComments (no maximum scroll limit, we just refresh)
+    while (commentedCount < targetComments) {
         // Wait for post elements or comment buttons to load
         await page.waitForSelector('button', { timeout: 8000 }).catch(() => null);
 
@@ -73,7 +73,25 @@ async function commentOnRelevantPosts(page) {
                 return isComment && !isInsideEditor && !isDisabled && !el.getAttribute('data-processed');
             });
 
-            const resumeKeywords = ['software testing', 'sdet', 'qa', 'playwright', 'selenium', 'automation', 'testing'];
+            const hiringKeywords = [
+                'hiring', "we're hiring", 'looking for', 'opening', 'vacancy', 
+                'job opening', 'requirement', 'recruit', 'open position', 
+                'apply now', 'urgent requirement', 'immediate joiner'
+            ];
+
+            const qaKeywords = [
+                'qa', 'q.a', 'quality assurance', 'software testing', 'software tester',
+                'test engineer', 'test automation', 'automation testing', 'manual testing',
+                'sdet', 'qa engineer', 'qa analyst', 'qa automation', 'selenium', 'playwright',
+                'cypress', 'api testing', 'performance testing'
+            ];
+
+            // Things that indicate it's a DEV role post, not QA — even if "QA" is mentioned in passing
+            const excludeKeywords = [
+                'software engineer', 'software engineering', 'developer', 'frontend', 
+                'backend', 'full stack', 'fullstack', 'open to work', 'devops engineer',
+                'data engineer', 'product manager', 'ui/ux designer'
+            ];
 
             function requiresMoreThan3Years(text) {
                 const textLower = text.toLowerCase();
@@ -138,10 +156,13 @@ async function commentOnRelevantPosts(page) {
                     continue;
                 }
 
-                const hasResumeKeywords = resumeKeywords.some(k => postText.toLowerCase().includes(k));
+                const postTextLower = postText.toLowerCase();
+                const isHiringPost = hiringKeywords.some(k => postTextLower.includes(k));
+                const isQaPost = qaKeywords.some(k => postTextLower.includes(k));
+                const isExcluded = excludeKeywords.some(k => postTextLower.includes(k));
                 const hasExpRequirement = requiresMoreThan3Years(postText);
 
-                if (hasResumeKeywords && hasExpRequirement) {
+                if (isHiringPost && isQaPost && hasExpRequirement && !isExcluded) {
                     // Generate a unique dynamic ID for this specific run cycle
                     const uniqueId = `btn-${Date.now()}-${i}`;
                     btn.setAttribute('data-target-comment', uniqueId);
@@ -157,9 +178,10 @@ async function commentOnRelevantPosts(page) {
             return results;
         });
 
+        let successfullyCommentedThisScan = false;
+
         if (commentActionResults.length > 0) {
-            noNewPostsCount = 0; // Reset scroll counter since we found new matches!
-            console.log(`📌 Found ${commentActionResults.length} new matching posts in this scan.`);
+            console.log(`📌 Found ${commentActionResults.length} matching posts in this scan (evaluating...).`);
 
             for (const action of commentActionResults) {
                 if (commentedCount >= targetComments) break;
@@ -208,18 +230,21 @@ async function commentOnRelevantPosts(page) {
 
                             if (alreadyCommented) {
                                 console.log("ℹ️ Already commented on this post. Skipping...");
+                                // Close the comment box so it doesn't clutter the screen
+                                await commentBtn.click({ timeout: 1000 }).catch(() => { });
+                                await page.waitForTimeout(200);
                                 continue;
                             }
 
                             const commentInput = cardContainer.locator('div.ql-editor, div[role="textbox"], textarea, [contenteditable="true"], [aria-placeholder*="comment"]').first();
 
-                            if (await commentInput.isVisible({ timeout: 6000 })) {
+                            if (await commentInput.isVisible({ timeout: 2000 })) {
                                 console.log("✍️ Typing comment: \"Interested\"...");
                                 await commentInput.evaluate(el => el.scrollIntoView({ block: 'center' }));
-                                await page.waitForTimeout(500);
+                                await page.waitForTimeout(100);
                                 await commentInput.focus();
-                                await commentInput.pressSequentially("Interested", { delay: 100 });
-                                await page.waitForTimeout(1500);
+                                await commentInput.fill("Interested");
+                                await page.waitForTimeout(300);
 
                                 // Tag the submit button inside the active comment box
                                 const submitBtnTagged = await cardContainer.evaluate((card) => {
@@ -252,7 +277,7 @@ async function commentOnRelevantPosts(page) {
 
                                     if (postBtnClicked) {
                                         // Verification step
-                                        await page.waitForTimeout(4000);
+                                        await page.waitForTimeout(1500);
                                         const verificationResult = await cardContainer.evaluate((card, user) => {
                                             // First check: has the input box been cleared?
                                             const activeInputBox = card.querySelector('div.ql-editor, div[role="textbox"], textarea, [contenteditable="true"]');
@@ -282,14 +307,16 @@ async function commentOnRelevantPosts(page) {
 
                                         if (verificationResult === "SUCCESS") {
                                             commentedCount++;
+                                            successfullyCommentedThisScan = true;
+                                            noNewPostsCount = 0; // Reset scroll counter since we successfully commented!
+                                            refreshCount = 0; // Reset refresh counter as well
                                             console.log(`✅ Comment posted and verified successfully! (Total: ${commentedCount}/${targetComments})`);
                                         } else {
                                             console.log(`⚠️ Comment verification failed: ${verificationResult}`);
                                         }
 
                                         // Human-like delay
-                                        const delay = Math.floor(Math.random() * 5000) + 5000;
-                                        await page.waitForTimeout(delay);
+                                        await page.waitForTimeout(500);
                                     } else {
                                         console.log("⚠️ Could not click Post button.");
                                     }
@@ -309,24 +336,56 @@ async function commentOnRelevantPosts(page) {
                     console.log(`⚠️ Error executing dynamic comment action:`, err.message);
                 }
             }
-        } else {
+        }
+        
+        if (!successfullyCommentedThisScan) {
             noNewPostsCount++;
-            console.log(`⏳ No new matching posts found in this scan. Scrolling to load more... (Attempts: ${noNewPostsCount}/${maxNoNewPostsScrolls})`);
+            console.log(`⏳ No actionable posts found in this scan. Scrolling to load more... (Attempts: ${noNewPostsCount}/${maxNoNewPostsScrolls})`);
         }
 
-        // Scroll down to load more content
+        // Scroll down to the bottom
         console.log("⏬ Scrolling page down...");
         await page.evaluate(() => {
             window.scrollTo(0, document.body.scrollHeight);
         });
+        await page.waitForTimeout(2000);
 
-        // Alternative scroll target: scroll to the very last button to trigger infinite scroll
+        // LinkedIn Search Results are paginated. We need to click 'Next' to get more posts!
+        const nextButton = page.locator('button[aria-label="Next"], button.artdeco-pagination__button--next').first();
+        if (await nextButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+            const isDisabled = await nextButton.evaluate(btn => btn.disabled || btn.getAttribute('aria-disabled') === 'true');
+            if (!isDisabled) {
+                console.log("⏭️ Clicking 'Next' page button...");
+                await nextButton.click();
+                await page.waitForTimeout(5000); // Wait for next page to load
+                noNewPostsCount = 0; // Reset since we are on a new page!
+                continue; // Skip the infinite scroll logic below and evaluate the new page
+            }
+        }
+
+        // Alternative scroll target for infinite scroll feeds
         await page.locator('button').last().scrollIntoViewIfNeeded().catch(() => { });
 
         // Wait for 4 seconds for new content to render/load
+        console.log("⏳ Waiting 4 seconds for new posts to load into the feed...");
         await page.waitForTimeout(4000);
+
+        // If we've scrolled too many times without finding new posts, the feed is likely exhausted.
+        // We will reload the page to get a fresh feed instead of quitting!
+        if (noNewPostsCount >= maxNoNewPostsScrolls) {
+            refreshCount++;
+            if (refreshCount > 1) { // Exactly 1 refresh allowed before changing country
+                console.log(`🔄 Feed exhausted after 1 refresh. Moving to next country...`);
+                return commentedCount;
+            }
+            console.log(`🔄 Reached max scrolls without new posts. Refreshing page to load fresh content...`);
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            await page.waitForTimeout(5000);
+            noNewPostsCount = 0; // Reset scroll counter after refreshing
+        }
     }
     console.log(`\n🎉 Content scan complete. Commented on ${commentedCount} matching posts.`);
+    return commentedCount;
 }
 
 async function run() {
@@ -337,7 +396,7 @@ async function run() {
 
     console.log("🚀 Starting Playwright LinkedIn Automation with Persistent Context...");
 
-    const isHeadless = process.env.PLAYWRIGHT_HEADLESS === 'true';
+    const isHeadless = false; // Turned off as requested to show browser
     const userDataDir = process.env.LINKEDIN_USER_DATA_DIR || './linkedin-user-data';
     console.log(`Launching browser: headless=${isHeadless}, userDataDir=${userDataDir}`);
 
@@ -358,6 +417,23 @@ async function run() {
     const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
     const page = context.pages()[0] || await context.newPage();
+
+    // Listen to network requests to capture the comment posting API and payload
+    page.on('request', request => {
+        try {
+            const url = request.url();
+            if (request.method() === 'POST' && url.includes('/voyager/api/')) {
+                const postData = request.postData();
+                if (postData && postData.includes('Interested')) {
+                    console.log(`\n======================================================`);
+                    console.log(`🌐 [API CAPTURE] LinkedIn Comment API Hit!`);
+                    console.log(`➡️ Endpoint URL: ${url}`);
+                    console.log(`➡️ Payload: ${postData.substring(0, 600)}...`); // Logging first 600 chars of the payload
+                    console.log(`======================================================\n`);
+                }
+            }
+        } catch (e) { }
+    });
 
     try {
         // Step 1: Check if already logged in from a previous session
@@ -459,15 +535,29 @@ async function run() {
         await page.goto('https://www.linkedin.com/jobs/', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(5000);
 
-        // Search for recent posts based on JOB_KEYWORD
-        const keyword = "software testing 4 years of experience";
-        console.log(`🔍 Searching LinkedIn for posts on: "${keyword}"...`);
-        const searchUrl = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent(keyword)}&origin=FACETED_SEARCH`;
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(6000);
+        const countries = ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'Netherlands', 'Ireland', 'Singapore', 'UAE', 'India'];
+        const dateFilters = ["past-week", "past-24h"];
+        const baseKeyword = "software testing hiring";
+        let totalCommented = 0;
+        const targetComments = 100;
 
-        // Run the commenting automation
-        await commentOnRelevantPosts(page);
+        for (const country of countries) {
+            if (totalCommented >= targetComments) break;
+
+            for (const dateFilter of dateFilters) {
+                if (totalCommented >= targetComments) break;
+
+                const keyword = `${baseKeyword} ${country}`;
+                console.log(`\n======================================================`);
+                console.log(`🔍 Searching LinkedIn for posts on: "${keyword}" (Date: ${dateFilter}, Sorted by: Top Match)...`);
+                const searchUrl = `https://www.linkedin.com/search/results/content/?datePosted=%22${dateFilter}%22&keywords=${encodeURIComponent(keyword)}&origin=FACETED_SEARCH&sortBy=%22relevance%22`;
+                await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
+                await page.waitForTimeout(6000);
+
+                // Run the commenting automation for this country and date filter
+                totalCommented = await commentOnRelevantPosts(page, totalCommented, targetComments);
+            }
+        }
 
         console.log("🎯 Automation template initialized. You can now use the active session page to scan and apply for jobs.");
     } catch (error) {
@@ -477,11 +567,11 @@ async function run() {
         const waitTime = isHeadless ? 1000 : 15000;
         console.log(`⏳ Keeping browser open for ${waitTime / 1000} seconds...`);
         try {
-            await page.waitForTimeout(waitTime).catch(() => {});
-        } catch (e) {}
+            await page.waitForTimeout(waitTime).catch(() => { });
+        } catch (e) { }
         try {
-            await context.close().catch(() => {});
-        } catch (e) {}
+            await context.close().catch(() => { });
+        } catch (e) { }
         console.log("Browser closed. Run completed.");
     }
     process.exit(0);
