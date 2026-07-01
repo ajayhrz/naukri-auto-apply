@@ -35,7 +35,7 @@ async function run() {
 
     console.log("🚀 Starting Playwright LinkedIn Connection Assistant...");
 
-    const isHeadless = process.env.PLAYWRIGHT_HEADLESS === 'true';
+    const isHeadless = true; // process.env.PLAYWRIGHT_HEADLESS === 'true';
     const userDataDir = process.env.LINKEDIN_USER_DATA_DIR || './linkedin-user-data';
     console.log(`Launching browser: headless=${isHeadless}, userDataDir=${userDataDir}`);
 
@@ -61,12 +61,12 @@ async function run() {
 
     try {
         // Step 1: Check session state
-        console.log("➡️ Checking session state on LinkedIn homepage...");
-        await page.goto('https://www.linkedin.com/', { waitUntil: 'domcontentloaded' });
+        console.log("➡️ Checking session state...");
+        await page.goto('https://www.linkedin.com/mynetwork/', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(4000);
 
         let currentUrl = page.url();
-        let isLoggedIn = /.*linkedin.com\/(feed|jobs|in|messaging|search).*/.test(currentUrl);
+        let isLoggedIn = !currentUrl.includes('/login') && !currentUrl.includes('/signup') && !currentUrl.includes('/checkpoint');
 
         if (isLoggedIn) {
             console.log("🎉 Session verified! Already logged into LinkedIn.");
@@ -139,187 +139,109 @@ async function run() {
             }
         }
 
-        // Wait 5 seconds to throttle requests
+        // Wait 5 seconds to throttle request
         await page.waitForTimeout(5000);
 
-        // Search for software testing hiring managers/recruiters (People filter) with JNV school context
-        const keyword = `"software testing" hiring "`;
-        console.log(`🔍 Searching LinkedIn for people matching: "${keyword}"...`);
-        const searchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(keyword)}&origin=GLOBAL_SEARCH_HEADER`;
+        console.log("➡️ Navigating to My Network...");
+        // Click over the my networks button
+        const myNetworkClicked = await resilientAction(page, 'Click My Network', [
+            page.locator('a[href*="/mynetwork/"]'),
+            page.locator('span[title="My Network"]'),
+            page.locator('a:has-text("My Network")')
+        ], 'click');
+        
+        if (!myNetworkClicked) {
+             console.log("⚠️ Could not click My Network button, falling back to direct navigation...");
+             await page.goto('https://www.linkedin.com/mynetwork/', { waitUntil: 'domcontentloaded' });
+        }
+        
+        await page.waitForTimeout(5000);
 
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(6000);
-
-        const processedNames = new Set();
-        let searchPageCount = 1;
-        while (connectedCount < targetCount) {
-            console.log(`\n📄 --- Processing Search Result Page ${searchPageCount} ---`);
-
-            // Loop through Connect buttons dynamically on the current search page
-            let pageHasButtons = true;
-            let pageConnectCount = 0;
-
-            while (pageHasButtons && connectedCount < targetCount) {
-                // Find all potential Connect buttons fresh on each loop to avoid detachment errors
-                const connectButtons = await page.locator('[aria-label^="Invite "][aria-label$="to connect"], [aria-label^="Connect with "]').all();
-
-                let activeBtn = null;
-                let cleanName = "Recruiter";
-
-                // Scan primary buttons to find the first unprocessed one
-                for (const btn of connectButtons) {
-                    const ariaLabel = await btn.getAttribute('aria-label').catch(() => '');
-                    let name = "Recruiter";
-                    if (ariaLabel) {
-                        const match = ariaLabel.match(/Invite (.*) to connect/i) || ariaLabel.match(/Connect with (.*)/i);
-                        if (match) name = match[1].trim();
-                    }
-                    if (name === "Recruiter") {
-                        name = await btn.evaluate(b => {
-                            const card = b.closest('[role="listitem"], li, div[class*="result"], div[class*="card"]');
-                            if (card) {
-                                const titleLink = card.querySelector('a[href*="/in/"]');
-                                if (titleLink) return titleLink.innerText.split('\n')[0].split('•')[0].trim();
-                            }
-                            return "Recruiter";
-                        }).catch(() => "Recruiter");
-                    }
-
-                    if (!processedNames.has(name)) {
-                        activeBtn = btn;
-                        cleanName = name;
-                        break;
-                    }
-                }
-
-                // Fallback to broader listitem buttons if no primary unprocessed buttons are found
-                if (!activeBtn) {
-                    const fallbackButtons = await page.locator('div[role="listitem"] button:has-text("Connect"), div[role="listitem"] a:has-text("Connect"), div[role="listitem"] [role="button"]:has-text("Connect")').all();
-                    for (const btn of fallbackButtons) {
-                        let name = await btn.evaluate(b => {
-                            const card = b.closest('[role="listitem"], li, div[class*="result"], div[class*="card"]');
-                            if (card) {
-                                const titleLink = card.querySelector('a[href*="/in/"]');
-                                if (titleLink) return titleLink.innerText.split('\n')[0].split('•')[0].trim();
-                            }
-                            return "Recruiter";
-                        }).catch(() => "Recruiter");
-
-                        if (!processedNames.has(name)) {
-                            activeBtn = btn;
-                            cleanName = name;
-                            break;
-                        }
-                    }
-                }
-
-                if (!activeBtn) {
-                    if (pageConnectCount === 0) {
-                        console.log("ℹ️ No Connect buttons found on this page.");
-                    } else {
-                        console.log("ℹ️ No more unprocessed Connect buttons found on this page.");
-                    }
-                    pageHasButtons = false;
-                    break;
-                }
-
-                // Mark this profile as processed
-                processedNames.add(cleanName);
-                pageConnectCount++;
+        console.log("🔍 Scanning network suggestions dynamically...");
+        
+        let noNewButtonsCount = 0;
+        
+        while (connectedCount < targetCount && noNewButtonsCount < 10) {
+            const connectButtons = await page.locator('button').all();
+            let newValidButtonsFound = false;
+            
+            for (let i = 0; i < connectButtons.length; i++) {
+                if (connectedCount >= targetCount) break;
 
                 try {
-                    // Scroll the button into view
-                    await activeBtn.evaluate(el => el.scrollIntoView({ block: 'center' }));
-                    await page.waitForTimeout(1000);
+                    const btn = connectButtons[i];
+                    if (!(await btn.isVisible().catch(() => false))) continue;
 
-                    // Check visibility again after scrolling
-                    if (!(await activeBtn.isVisible())) {
-                        continue;
-                    }
+                    // Skip if we already processed this button
+                    const isProcessed = await btn.evaluate(el => el.getAttribute('data-processed')).catch(() => null);
+                    if (isProcessed === "true") continue;
+                    
+                    // Mark as processed
+                    await btn.evaluate(el => el.setAttribute('data-processed', 'true')).catch(() => {});
 
-                    console.log(`👉 Sending connection request to: ${cleanName}`);
+                    const btnText = await btn.innerText().catch(() => '');
+                    if (!btnText.toLowerCase().includes('connect')) continue;
 
-                    // Check if the button is already pending, sent or disabled
-                    const buttonInfo = await activeBtn.evaluate(el => {
-                        const text = (el.innerText || '').toLowerCase();
-                        const label = (el.getAttribute('aria-label') || '').toLowerCase();
-                        const isDisabled = el.hasAttribute('disabled') || el.classList.contains('disabled');
-                        return { text, label, isDisabled };
-                    }).catch(() => ({ text: '', label: '', isDisabled: false }));
+                    const cardText = await btn.evaluate(el => {
+                        const card = el.closest('li') || el.closest('.discover-entity-type-card') || el.closest('.artdeco-card') || el.parentElement.parentElement.parentElement;
+                        return card ? card.innerText : '';
+                    }).catch(() => '');
 
-                    if (buttonInfo.isDisabled ||
-                        buttonInfo.text.includes('pending') ||
-                        buttonInfo.text.includes('withdraw') ||
-                        buttonInfo.label.includes('pending') ||
-                        buttonInfo.label.includes('withdraw')) {
-                        console.log(`ℹ️ Connection request is already pending/sent or button is disabled for ${cleanName}. Skipping.`);
-                        continue;
-                    }
+                    const textLower = cardText.toLowerCase();
+                    const hasBackground = textLower.includes('qa') || textLower.includes('software testing') || textLower.includes('quality assurance') || textLower.includes('tester');
+                    const isFromIndia = textLower.includes('india');
 
-                    await activeBtn.click();
+                    if (hasBackground && !isFromIndia) {
+                        newValidButtonsFound = true;
+                        console.log(`\n👉 Found matching profile:\n${cardText.split('\\n')[0]} - ${cardText.split('\\n')[1] || ''}`);
+                        
+                        await btn.evaluate(el => el.scrollIntoView({ block: 'center' })).catch(() => {});
+                        await page.waitForTimeout(1000);
+                        
+                        await btn.click();
+                        console.log(`✅ Sent connection request.`);
+                        connectedCount++;
 
-                    // Wait for the modal buttons to be visible
-                    const sendWithoutNoteBtn = page.locator('button:has-text("Send without a note"), button[aria-label="Send without a note"]').first();
-                    const sendConfirmBtn = page.locator('button:has-text("Send"), button[aria-label="Send"]').first();
+                        const sendWithoutNoteBtn = page.locator('button:has-text("Send without a note"), button[aria-label="Send without a note"]').first();
+                        const sendConfirmBtn = page.locator('button:has-text("Send"), button[aria-label="Send"]').first();
 
-                    let modalOpened = false;
-                    for (let attempt = 0; attempt < 8; attempt++) {
-                        if (await sendWithoutNoteBtn.isVisible() || await sendConfirmBtn.isVisible()) {
-                            modalOpened = true;
+                        let modalOpened = false;
+                        for (let attempt = 0; attempt < 5; attempt++) {
+                            if (await sendWithoutNoteBtn.isVisible().catch(() => false) || await sendConfirmBtn.isVisible().catch(() => false)) {
+                                modalOpened = true;
+                                break;
+                            }
+                            await page.waitForTimeout(500);
+                        }
+
+                        if (modalOpened) {
+                            if (await sendWithoutNoteBtn.isVisible().catch(() => false)) {
+                                await sendWithoutNoteBtn.click();
+                            } else if (await sendConfirmBtn.isVisible().catch(() => false)) {
+                                await sendConfirmBtn.click();
+                            }
+                        }
+
+                        const limitDialog = page.locator('div[role="dialog"], [class*="modal"], [class*="dialog"]');
+                        const dialogTexts = await limitDialog.allInnerTexts().catch(() => []);
+                        const limitReached = dialogTexts.some(text =>
+                            text.toLowerCase().includes('limit') &&
+                            (text.toLowerCase().includes('reached') || text.toLowerCase().includes('weekly') || text.toLowerCase().includes('out of connection'))
+                        );
+                        if (limitReached) {
+                            console.log("🛑 LinkedIn Weekly Connection Limit reached! Stopping execution.");
                             break;
                         }
-                        await page.waitForTimeout(500);
-                    }
 
-                    if (modalOpened) {
-                        if (await sendWithoutNoteBtn.isVisible()) {
-                            await sendWithoutNoteBtn.click();
-                            console.log(`✅ Clicked "Send without a note" for ${cleanName}`);
-                            connectedCount++;
-                        } else if (await sendConfirmBtn.isVisible()) {
-                            await sendConfirmBtn.click();
-                            console.log(`✅ Clicked "Send" confirmation button for ${cleanName}`);
-                            connectedCount++;
-                        }
-                    } else {
-                        // Check if the button itself text changed to Pending or if it disappeared,
-                        // meaning the invite was sent directly without a modal.
-                        await page.waitForTimeout(1000);
-                        const btnText = (await activeBtn.innerText().catch(() => '')) || '';
-                        const btnLabel = (await activeBtn.getAttribute('aria-label').catch(() => '')) || '';
-                        if (btnText.toLowerCase().includes('pending') || btnLabel.toLowerCase().includes('pending') || !(await activeBtn.isVisible())) {
-                            console.log(`✅ Connection request sent directly (no modal) for ${cleanName}`);
-                            connectedCount++;
-                        } else {
-                            console.log(`⚠️ Invitation modal not detected or resolved differently. Skipping.`);
-                            // Hit escape to close any lingering modal safely
-                            await page.keyboard.press('Escape').catch(() => { });
-                        }
+                        const randomDelay = Math.floor(Math.random() * 3000) + 2000;
+                        console.log(`⏳ Waiting for ${randomDelay / 1000} seconds...`);
+                        await page.waitForTimeout(randomDelay);
                     }
-
-                    // Check for weekly invitation limit modal
-                    const limitDialog = page.locator('div[role="dialog"], [class*="modal"], [class*="dialog"]');
-                    const dialogTexts = await limitDialog.allInnerTexts().catch(() => []);
-                    const limitReached = dialogTexts.some(text =>
-                        text.toLowerCase().includes('limit') &&
-                        (text.toLowerCase().includes('reached') || text.toLowerCase().includes('weekly') || text.toLowerCase().includes('out of connection'))
-                    );
-                    if (limitReached) {
-                        console.log("🛑 LinkedIn Weekly Connection Limit reached! Stopping execution.");
-                        await page.keyboard.press('Escape').catch(() => { });
-                        break;
-                    }
-
-                    // Human-like delay between requests to remain safe (3 to 7 seconds)
-                    const randomDelay = Math.floor(Math.random() * 4000) + 3000;
-                    console.log(`⏳ Throttling: Waiting for ${randomDelay / 1000} seconds...`);
-                    await page.waitForTimeout(randomDelay);
-                } catch (cardError) {
-                    console.log(`❌ Error processing Connect button: ${cardError.message}`);
+                } catch (err) {
+                    console.log(`❌ Error evaluating button: ${err.message}`);
                 }
             }
 
-            // Check if we hit the limit during card iteration or after
             const limitDialog = page.locator('div[role="dialog"], [class*="modal"], [class*="dialog"]');
             const dialogTexts = await limitDialog.allInnerTexts().catch(() => []);
             const limitReached = dialogTexts.some(text =>
@@ -331,20 +253,16 @@ async function run() {
             }
 
             if (connectedCount < targetCount) {
-                // Scroll down to load the pagination bar
-                await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-                await page.waitForTimeout(3000);
-
-                // Locate the next pagination button
-                const nextButton = page.locator('button[aria-label="Next"]').first();
-                if (await nextButton.isVisible({ timeout: 4000 })) {
-                    console.log("➡️ Navigating to the next search page...");
-                    await nextButton.click();
-                    searchPageCount++;
-                    await page.waitForTimeout(6000); // Allow next page list to load fully
+                console.log("⬇️ Scrolling to load more suggestions...");
+                for (let s = 0; s < 5; s++) {
+                    await page.evaluate(() => window.scrollBy(0, 1500));
+                    await page.waitForTimeout(1500);
+                }
+                
+                if (!newValidButtonsFound) {
+                    noNewButtonsCount++;
                 } else {
-                    console.log("ℹ️ Pagination next button is not visible or has reached the end of search results. Stopping.");
-                    break;
+                    noNewButtonsCount = 0;
                 }
             }
         }
