@@ -396,7 +396,7 @@ async function run() {
 
     console.log("🚀 Starting Playwright LinkedIn Automation with Persistent Context...");
 
-    const isHeadless = false; // Turned off as requested to show browser
+    const isHeadless = true; // Enabled headless mode to hide the browser
     const userDataDir = process.env.LINKEDIN_USER_DATA_DIR || './linkedin-user-data';
     console.log(`Launching browser: headless=${isHeadless}, userDataDir=${userDataDir}`);
 
