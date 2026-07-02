@@ -55,7 +55,13 @@ async function runProfileUpdater() {
         ]);
 
         if (!clickedEdit) {
-            throw new Error('Could not open the Resume Headline edit modal.');
+            console.log('📸 Taking debug screenshot and HTML dump...');
+            await page.screenshot({ path: 'debug_profile_error.png', fullPage: true }).catch(() => {});
+            try {
+                const fs = require('fs');
+                fs.writeFileSync('debug_profile_error.html', await page.content());
+            } catch (e) {}
+            throw new Error('Could not open the Resume Headline edit modal. Check debug_profile_error.png in the workspace.');
         }
 
         console.log('✅ Clicked Edit Resume Headline.');
