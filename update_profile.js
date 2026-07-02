@@ -40,12 +40,16 @@ async function runProfileUpdater() {
 
         console.log('➡️  Navigating to Profile Page...');
         await page.goto('https://www.naukri.com/mnjuser/profile', { waitUntil: 'domcontentloaded' });
+        // Wait for the main profile container to make sure the page is loaded
+        await page.waitForSelector('.resumeHeadline, .widgetHead', { timeout: 15000 }).catch(() => {});
         await page.waitForTimeout(5000);
 
         console.log('🔍 Looking for Resume Headline...');
         const clickedEdit = await resilientAction(page, 'Edit Resume Headline', [
-            page.locator('span:text-is("Resume headline")').locator('..').locator('.edit'),
             page.locator('.resumeHeadline .edit'),
+            page.locator('div.widgetHead').filter({ hasText: /Resume headline/i }).locator('.edit'),
+            page.locator('span').filter({ hasText: /Resume headline/i }).locator('xpath=ancestor::div[1]//span[contains(@class, "edit")]'),
+            page.locator('span:text-is("Resume headline")').locator('..').locator('.edit'),
             page.locator('div.widgetHead:has(span:has-text("Resume headline")) .edit'),
             page.locator('span:has-text("Resume headline")').locator('xpath=ancestor::div[1]//span[contains(@class, "edit")]'),
         ]);
